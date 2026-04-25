@@ -15,6 +15,8 @@ import { Route as ResultsRouteImport } from './routes/results'
 import { Route as PassportRouteImport } from './routes/passport'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
+import { Route as EmployerRouteImport } from './routes/employer'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
 const TestRoute = TestRouteImport.update({
@@ -47,6 +49,16 @@ const HowItWorksRoute = HowItWorksRouteImport.update({
   path: '/how-it-works',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmployerRoute = EmployerRouteImport.update({
+  id: '/employer',
+  path: '/employer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -55,6 +67,8 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
@@ -64,6 +78,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
@@ -74,6 +90,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
@@ -85,6 +103,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
+    | '/employer'
     | '/how-it-works'
     | '/onboarding'
     | '/passport'
@@ -94,6 +114,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
+    | '/employer'
     | '/how-it-works'
     | '/onboarding'
     | '/passport'
@@ -103,6 +125,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
+    | '/employer'
     | '/how-it-works'
     | '/onboarding'
     | '/passport'
@@ -113,6 +137,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
+  EmployerRoute: typeof EmployerRoute
   HowItWorksRoute: typeof HowItWorksRoute
   OnboardingRoute: typeof OnboardingRoute
   PassportRoute: typeof PassportRoute
@@ -165,6 +191,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HowItWorksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/employer': {
+      id: '/employer'
+      path: '/employer'
+      fullPath: '/employer'
+      preLoaderRoute: typeof EmployerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -177,6 +217,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
+  EmployerRoute: EmployerRoute,
   HowItWorksRoute: HowItWorksRoute,
   OnboardingRoute: OnboardingRoute,
   PassportRoute: PassportRoute,
