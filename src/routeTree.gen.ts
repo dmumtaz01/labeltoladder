@@ -14,6 +14,7 @@ import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as ResultsRouteImport } from './routes/results'
 import { Route as PassportRouteImport } from './routes/passport'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as EmployerRouteImport } from './routes/employer'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -44,6 +45,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JobsRoute = JobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HowItWorksRoute = HowItWorksRouteImport.update({
   id: '/how-it-works',
   path: '/how-it-works',
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
+  '/jobs': typeof JobsRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
   '/results': typeof ResultsRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
+  '/jobs': typeof JobsRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
   '/results': typeof ResultsRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
+  '/jobs': typeof JobsRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
   '/results': typeof ResultsRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/employer'
     | '/how-it-works'
+    | '/jobs'
     | '/onboarding'
     | '/passport'
     | '/results'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/employer'
     | '/how-it-works'
+    | '/jobs'
     | '/onboarding'
     | '/passport'
     | '/results'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/employer'
     | '/how-it-works'
+    | '/jobs'
     | '/onboarding'
     | '/passport'
     | '/results'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   EmployerRoute: typeof EmployerRoute
   HowItWorksRoute: typeof HowItWorksRoute
+  JobsRoute: typeof JobsRoute
   OnboardingRoute: typeof OnboardingRoute
   PassportRoute: typeof PassportRoute
   ResultsRoute: typeof ResultsRoute
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/jobs': {
+      id: '/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof JobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/how-it-works': {
       id: '/how-it-works'
       path: '/how-it-works'
@@ -220,6 +240,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   EmployerRoute: EmployerRoute,
   HowItWorksRoute: HowItWorksRoute,
+  JobsRoute: JobsRoute,
   OnboardingRoute: OnboardingRoute,
   PassportRoute: PassportRoute,
   ResultsRoute: ResultsRoute,

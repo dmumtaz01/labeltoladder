@@ -201,7 +201,26 @@ function PassportPage() {
           </div>
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-8 grid gap-4 rounded-2xl border border-primary/30 bg-primary/5 p-6 md:grid-cols-[1fr_auto] md:items-center">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-secondary">
+              You're cleared
+            </p>
+            <h2 className="mt-1 font-serif text-xl font-bold">
+              See tasks matched to your Passport
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Browse open AI work ranked by your level, languages and interests. Apply with one click.
+            </p>
+          </div>
+          <Link to="/jobs">
+            <Button variant="hero" size="lg">
+              Find work →
+            </Button>
+          </Link>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
           <Link to="/results">
             <Button variant="outline">View score breakdown</Button>
           </Link>
