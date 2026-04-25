@@ -1,10 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
-import { loadProfile, clearProfile } from "@/lib/storage";
+import { useCandidateGate } from "@/lib/useCandidate";
+import { useAuth } from "@/lib/auth";
 import { getLevel } from "@/lib/levels";
-import type { CandidateProfile } from "@/lib/types";
 
 export const Route = createFileRoute("/passport")({
   head: () => ({
@@ -22,15 +21,10 @@ export const Route = createFileRoute("/passport")({
 
 function PassportPage() {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<CandidateProfile | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const { profile, ready } = useCandidateGate();
+  const { signOut } = useAuth();
 
-  useEffect(() => {
-    setProfile(loadProfile());
-    setLoaded(true);
-  }, []);
-
-  if (!loaded) return null;
+  if (!ready) return null;
 
   if (!profile?.testResults || !profile.onboarding) {
     return (
@@ -70,11 +64,9 @@ function PassportPage() {
       .toUpperCase()
       .slice(0, 8);
 
-  const handleReset = () => {
-    if (confirm("Reset your Label-to-Ladder profile? This cannot be undone.")) {
-      clearProfile();
-      navigate({ to: "/" });
-    }
+  const handleSignOut = async () => {
+    await signOut();
+    navigate({ to: "/" });
   };
 
   return (
@@ -225,8 +217,8 @@ function PassportPage() {
             <Button variant="outline">View score breakdown</Button>
           </Link>
           <div className="flex gap-3">
-            <Button variant="ghost" onClick={handleReset}>
-              Reset profile
+            <Button variant="ghost" onClick={handleSignOut}>
+              Sign out
             </Button>
             <Link to="/onboarding">
               <Button variant="hero">Re-take assessment</Button>
