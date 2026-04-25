@@ -25,6 +25,13 @@ export function SiteHeader() {
           >
             Passport
           </Link>
+          <Link
+            to="/jobs"
+            className="text-muted-foreground transition-smooth hover:text-foreground"
+            activeProps={{ className: "text-foreground font-medium" }}
+          >
+            Find work
+          </Link>
           <span className="h-4 w-px bg-border" aria-hidden="true" />
           <Link
             to="/employer"
