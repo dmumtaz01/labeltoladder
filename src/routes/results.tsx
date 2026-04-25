@@ -1,10 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
-import { loadProfile } from "@/lib/storage";
+import { useCandidateGate } from "@/lib/useCandidate";
 import { getLevel, LEVELS } from "@/lib/levels";
-import type { CandidateProfile } from "@/lib/types";
 
 export const Route = createFileRoute("/results")({
   head: () => ({ meta: [{ title: "Your readiness score — Label-to-Ladder" }] }),
@@ -13,18 +12,13 @@ export const Route = createFileRoute("/results")({
 
 function ResultsPage() {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<CandidateProfile | null>(null);
+  const { profile, ready } = useCandidateGate();
 
   useEffect(() => {
-    const p = loadProfile();
-    if (!p?.testResults) {
-      navigate({ to: "/test" });
-      return;
-    }
-    setProfile(p);
-  }, [navigate]);
+    if (ready && !profile?.testResults) navigate({ to: "/test" });
+  }, [ready, profile, navigate]);
 
-  if (!profile?.testResults) return null;
+  if (!ready || !profile?.testResults) return null;
   const r = profile.testResults;
   const lvl = getLevel(r.level);
 
