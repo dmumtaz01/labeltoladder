@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      annotation_jobs: {
+        Row: {
+          assigned_at: string
+          candidate_id: string
+          id: string
+          payload: Json | null
+          payout_cents: number
+          status: string
+          submission: Json | null
+          submitted_at: string | null
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string
+          candidate_id: string
+          id?: string
+          payload?: Json | null
+          payout_cents?: number
+          status?: string
+          submission?: Json | null
+          submitted_at?: string | null
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string
+          candidate_id?: string
+          id?: string
+          payload?: Json | null
+          payout_cents?: number
+          status?: string
+          submission?: Json | null
+          submitted_at?: string | null
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annotation_jobs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "employer_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           applied_at: string
@@ -76,6 +123,27 @@ export type Database = {
         }
         Relationships: []
       }
+      consents: {
+        Row: {
+          accepted_at: string
+          id: string
+          user_id: string
+          version: string
+        }
+        Insert: {
+          accepted_at?: string
+          id?: string
+          user_id: string
+          version?: string
+        }
+        Update: {
+          accepted_at?: string
+          id?: string
+          user_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
       employer_tasks: {
         Row: {
           category: string
@@ -118,6 +186,47 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount_cents: number
+          annotation_job_id: string | null
+          candidate_id: string
+          created_at: string
+          currency: string
+          id: string
+          reference: string | null
+          status: string
+        }
+        Insert: {
+          amount_cents: number
+          annotation_job_id?: string | null
+          candidate_id: string
+          created_at?: string
+          currency?: string
+          id?: string
+          reference?: string | null
+          status?: string
+        }
+        Update: {
+          amount_cents?: number
+          annotation_job_id?: string | null
+          candidate_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          reference?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_annotation_job_id_fkey"
+            columns: ["annotation_job_id"]
+            isOneToOne: false
+            referencedRelation: "annotation_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -138,6 +247,41 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      quality_reviews: {
+        Row: {
+          annotation_job_id: string
+          created_at: string
+          feedback: string | null
+          id: string
+          reviewer: string
+          score: number
+        }
+        Insert: {
+          annotation_job_id: string
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          reviewer?: string
+          score: number
+        }
+        Update: {
+          annotation_job_id?: string
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          reviewer?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_reviews_annotation_job_id_fkey"
+            columns: ["annotation_job_id"]
+            isOneToOne: false
+            referencedRelation: "annotation_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -162,7 +306,17 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      leaderboard_stats: {
+        Row: {
+          approved_jobs: number | null
+          earned_cents: number | null
+          full_name: string | null
+          level: number | null
+          points: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
