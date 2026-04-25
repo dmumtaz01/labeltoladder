@@ -105,9 +105,9 @@ function AnnotationPage() {
           <>
             <article className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-soft">
               <p className="text-sm font-semibold">{job.payload?.prompt}</p>
-              {(job.payload as { context?: string })?.context && (
+              {(job.payload as unknown as { context?: string })?.context && (
                 <blockquote className="mt-3 rounded-xl bg-secondary px-3 py-2 text-sm text-secondary-foreground">
-                  {(job.payload as { context: string }).context}
+                  {(job.payload as unknown as { context: string }).context}
                 </blockquote>
               )}
               <p className="mt-3 text-[11px] uppercase tracking-wider text-muted-foreground">

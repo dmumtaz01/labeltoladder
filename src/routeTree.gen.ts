@@ -12,12 +12,19 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TestRouteImport } from './routes/test'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as ResultsRouteImport } from './routes/results'
+import { Route as QualityReviewRouteImport } from './routes/quality-review'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PaymentRouteImport } from './routes/payment'
 import { Route as PassportRouteImport } from './routes/passport'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
+import { Route as JourneyRouteImport } from './routes/journey'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as EmployerRouteImport } from './routes/employer'
+import { Route as ConsentRouteImport } from './routes/consent'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AnnotationRouteImport } from './routes/annotation'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -36,6 +43,21 @@ const ResultsRoute = ResultsRouteImport.update({
   path: '/results',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QualityReviewRoute = QualityReviewRouteImport.update({
+  id: '/quality-review',
+  path: '/quality-review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentRoute = PaymentRouteImport.update({
+  id: '/payment',
+  path: '/payment',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PassportRoute = PassportRouteImport.update({
   id: '/passport',
   path: '/passport',
@@ -44,6 +66,16 @@ const PassportRoute = PassportRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JourneyRoute = JourneyRouteImport.update({
+  id: '/journey',
+  path: '/journey',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -61,9 +93,19 @@ const EmployerRoute = EmployerRouteImport.update({
   path: '/employer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConsentRoute = ConsentRouteImport.update({
+  id: '/consent',
+  path: '/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnnotationRoute = AnnotationRouteImport.update({
+  id: '/annotation',
+  path: '/annotation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -80,12 +122,19 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/annotation': typeof AnnotationRoute
   '/auth': typeof AuthRoute
+  '/consent': typeof ConsentRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/jobs': typeof JobsRoute
+  '/journey': typeof JourneyRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
+  '/payment': typeof PaymentRoute
+  '/profile': typeof ProfileRoute
+  '/quality-review': typeof QualityReviewRoute
   '/results': typeof ResultsRoute
   '/screener': typeof ScreenerRoute
   '/test': typeof TestRoute
@@ -93,12 +142,19 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/annotation': typeof AnnotationRoute
   '/auth': typeof AuthRoute
+  '/consent': typeof ConsentRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/jobs': typeof JobsRoute
+  '/journey': typeof JourneyRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
+  '/payment': typeof PaymentRoute
+  '/profile': typeof ProfileRoute
+  '/quality-review': typeof QualityReviewRoute
   '/results': typeof ResultsRoute
   '/screener': typeof ScreenerRoute
   '/test': typeof TestRoute
@@ -107,12 +163,19 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/annotation': typeof AnnotationRoute
   '/auth': typeof AuthRoute
+  '/consent': typeof ConsentRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/jobs': typeof JobsRoute
+  '/journey': typeof JourneyRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/onboarding': typeof OnboardingRoute
   '/passport': typeof PassportRoute
+  '/payment': typeof PaymentRoute
+  '/profile': typeof ProfileRoute
+  '/quality-review': typeof QualityReviewRoute
   '/results': typeof ResultsRoute
   '/screener': typeof ScreenerRoute
   '/test': typeof TestRoute
@@ -122,12 +185,19 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/annotation'
     | '/auth'
+    | '/consent'
     | '/employer'
     | '/how-it-works'
     | '/jobs'
+    | '/journey'
+    | '/leaderboard'
     | '/onboarding'
     | '/passport'
+    | '/payment'
+    | '/profile'
+    | '/quality-review'
     | '/results'
     | '/screener'
     | '/test'
@@ -135,12 +205,19 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/annotation'
     | '/auth'
+    | '/consent'
     | '/employer'
     | '/how-it-works'
     | '/jobs'
+    | '/journey'
+    | '/leaderboard'
     | '/onboarding'
     | '/passport'
+    | '/payment'
+    | '/profile'
+    | '/quality-review'
     | '/results'
     | '/screener'
     | '/test'
@@ -148,12 +225,19 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/annotation'
     | '/auth'
+    | '/consent'
     | '/employer'
     | '/how-it-works'
     | '/jobs'
+    | '/journey'
+    | '/leaderboard'
     | '/onboarding'
     | '/passport'
+    | '/payment'
+    | '/profile'
+    | '/quality-review'
     | '/results'
     | '/screener'
     | '/test'
@@ -162,12 +246,19 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AnnotationRoute: typeof AnnotationRoute
   AuthRoute: typeof AuthRoute
+  ConsentRoute: typeof ConsentRoute
   EmployerRoute: typeof EmployerRoute
   HowItWorksRoute: typeof HowItWorksRoute
   JobsRoute: typeof JobsRoute
+  JourneyRoute: typeof JourneyRoute
+  LeaderboardRoute: typeof LeaderboardRoute
   OnboardingRoute: typeof OnboardingRoute
   PassportRoute: typeof PassportRoute
+  PaymentRoute: typeof PaymentRoute
+  ProfileRoute: typeof ProfileRoute
+  QualityReviewRoute: typeof QualityReviewRoute
   ResultsRoute: typeof ResultsRoute
   ScreenerRoute: typeof ScreenerRoute
   TestRoute: typeof TestRoute
@@ -196,6 +287,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResultsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/quality-review': {
+      id: '/quality-review'
+      path: '/quality-review'
+      fullPath: '/quality-review'
+      preLoaderRoute: typeof QualityReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment': {
+      id: '/payment'
+      path: '/payment'
+      fullPath: '/payment'
+      preLoaderRoute: typeof PaymentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/passport': {
       id: '/passport'
       path: '/passport'
@@ -208,6 +320,20 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/journey': {
+      id: '/journey'
+      path: '/journey'
+      fullPath: '/journey'
+      preLoaderRoute: typeof JourneyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -231,11 +357,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmployerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/consent': {
+      id: '/consent'
+      path: '/consent'
+      fullPath: '/consent'
+      preLoaderRoute: typeof ConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/annotation': {
+      id: '/annotation'
+      path: '/annotation'
+      fullPath: '/annotation'
+      preLoaderRoute: typeof AnnotationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -258,12 +398,19 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AnnotationRoute: AnnotationRoute,
   AuthRoute: AuthRoute,
+  ConsentRoute: ConsentRoute,
   EmployerRoute: EmployerRoute,
   HowItWorksRoute: HowItWorksRoute,
   JobsRoute: JobsRoute,
+  JourneyRoute: JourneyRoute,
+  LeaderboardRoute: LeaderboardRoute,
   OnboardingRoute: OnboardingRoute,
   PassportRoute: PassportRoute,
+  PaymentRoute: PaymentRoute,
+  ProfileRoute: ProfileRoute,
+  QualityReviewRoute: QualityReviewRoute,
   ResultsRoute: ResultsRoute,
   ScreenerRoute: ScreenerRoute,
   TestRoute: TestRoute,
