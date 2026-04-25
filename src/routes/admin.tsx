@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
-import { MOCK_CANDIDATES, MOCK_TASKS } from "@/lib/mockData";
+import { useAuth } from "@/lib/auth";
+import { fetchAllCandidates, fetchTasks, type AdminCandidateRow, type DbTask } from "@/lib/db";
 import { getLevel, LEVELS } from "@/lib/levels";
 
 export const Route = createFileRoute("/admin")({
@@ -20,35 +21,88 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminPage() {
+  const { user, roles, loading } = useAuth();
+  const [candidates, setCandidates] = useState<AdminCandidateRow[]>([]);
+  const [tasks, setTasks] = useState<DbTask[]>([]);
+  const [dataReady, setDataReady] = useState(false);
+
+  const isAdmin = roles.includes("admin");
+
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+    Promise.all([fetchAllCandidates(), fetchTasks()]).then(([c, t]) => {
+      setCandidates(c);
+      setTasks(t);
+      setDataReady(true);
+    });
+  }, [user, isAdmin]);
+
   const stats = useMemo(() => {
-    const total = MOCK_CANDIDATES.length;
-    const verified = MOCK_CANDIDATES.filter((c) => c.level > 0).length;
-    const avgAcc =
-      MOCK_CANDIDATES.reduce((s, c) => s + c.accuracy, 0) / total;
-    const avgLevel = MOCK_CANDIDATES.reduce((s, c) => s + c.level, 0) / total;
-    const newThisWeek = MOCK_CANDIDATES.filter((c) => c.joinedDays <= 7).length;
-    const openTasks = MOCK_TASKS.length;
-    const countries = new Set(MOCK_CANDIDATES.map((c) => c.country)).size;
-    return { total, verified, avgAcc, avgLevel, newThisWeek, openTasks, countries };
-  }, []);
+    const total = candidates.length;
+    const verified = candidates.filter((c) => (c.level ?? 0) > 0).length;
+    const accs = candidates
+      .map((c) => c.test_results?.accuracy)
+      .filter((n): n is number => typeof n === "number");
+    const avgAcc = accs.length ? accs.reduce((s, n) => s + n, 0) / accs.length : 0;
+    const levels = candidates.map((c) => c.level ?? 0);
+    const avgLevel = levels.length ? levels.reduce((s, n) => s + n, 0) / levels.length : 0;
+    const newThisWeek = candidates.filter(
+      (c) => Date.now() - new Date(c.created_at).getTime() < 7 * 86400000,
+    ).length;
+    const countries = new Set(
+      candidates.map((c) => c.onboarding?.country).filter(Boolean),
+    ).size;
+    return {
+      total,
+      verified,
+      avgAcc,
+      avgLevel,
+      newThisWeek,
+      openTasks: tasks.length,
+      countries,
+    };
+  }, [candidates, tasks]);
 
   const distribution = useMemo(() => {
     const buckets = LEVELS.map((l) => ({
       level: l.level,
       title: l.title,
-      count: MOCK_CANDIDATES.filter((c) => c.level === l.level).length,
+      count: candidates.filter((c) => (c.level ?? 0) === l.level).length,
     }));
     const max = Math.max(1, ...buckets.map((b) => b.count));
     return { buckets, max };
-  }, []);
+  }, [candidates]);
 
   const languages = useMemo(() => {
     const m = new Map<string, number>();
-    MOCK_CANDIDATES.forEach((c) =>
-      c.languages.forEach((l) => m.set(l, (m.get(l) ?? 0) + 1)),
+    candidates.forEach((c) =>
+      (c.onboarding?.languages ?? []).forEach((l) => m.set(l, (m.get(l) ?? 0) + 1)),
     );
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
-  }, []);
+  }, [candidates]);
+
+  if (loading) return null;
+  if (!user) {
+    return (
+      <Gate
+        title="Sign in to view the admin console"
+        body="This area is only available to admins."
+        cta="Sign in"
+        to="/auth"
+      />
+    );
+  }
+  if (!isAdmin) {
+    return (
+      <Gate
+        title="Admins only"
+        body="Your account doesn't have admin access. Ask an existing admin to grant you the role."
+        cta="Back home"
+        to="/"
+      />
+    );
+  }
+  if (!dataReady) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -60,22 +114,25 @@ function AdminPage() {
           </p>
           <h1 className="mt-2 font-serif text-4xl font-bold">Platform overview</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
-            Real-time view of candidates, employer tasks, and skill distribution across the
+            Live view of candidates, employer tasks, and skill distribution across the
             Label-to-Ladder network.
           </p>
         </div>
 
-        {/* KPI cards */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Kpi label="Candidates" value={stats.total} sub={`+${stats.newThisWeek} this week`} />
           <Kpi
             label="Verified passports"
             value={stats.verified}
-            sub={`${Math.round((stats.verified / stats.total) * 100)}% of total`}
+            sub={
+              stats.total
+                ? `${Math.round((stats.verified / stats.total) * 100)}% of total`
+                : "—"
+            }
           />
           <Kpi
             label="Avg. accuracy"
-            value={`${Math.round(stats.avgAcc * 100)}%`}
+            value={stats.total ? `${Math.round(stats.avgAcc * 100)}%` : "—"}
             sub={`Avg. level L${stats.avgLevel.toFixed(1)}`}
           />
           <Kpi
@@ -85,9 +142,8 @@ function AdminPage() {
           />
         </section>
 
-        {/* Level distribution + languages */}
         <section className="mt-10 grid gap-6 lg:grid-cols-[2fr_1fr]">
-          <Panel title="Level distribution" subtitle="How candidates are clustered across the ladder">
+          <Panel title="Level distribution" subtitle="How candidates cluster across the ladder">
             <div className="space-y-3">
               {distribution.buckets.map((b) => (
                 <div key={b.level} className="flex items-center gap-4">
@@ -108,23 +164,26 @@ function AdminPage() {
           </Panel>
 
           <Panel title="Languages" subtitle="Coverage across the network">
-            <ul className="space-y-2">
-              {languages.map(([lang, n]) => (
-                <li
-                  key={lang}
-                  className="flex items-center justify-between border-b border-border/60 pb-2 last:border-0"
-                >
-                  <span className="text-sm">{lang}</span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {n} candidate{n === 1 ? "" : "s"}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {languages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No data yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {languages.map(([lang, n]) => (
+                  <li
+                    key={lang}
+                    className="flex items-center justify-between border-b border-border/60 pb-2 last:border-0"
+                  >
+                    <span className="text-sm">{lang}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {n} candidate{n === 1 ? "" : "s"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Panel>
         </section>
 
-        {/* Recent candidates table */}
         <section className="mt-10">
           <div className="flex items-baseline justify-between">
             <h2 className="font-serif text-xl font-bold">Recent candidates</h2>
@@ -138,7 +197,6 @@ function AdminPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3">Passport</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Country</th>
                   <th className="px-4 py-3">Languages</th>
@@ -148,65 +206,83 @@ function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_CANDIDATES.map((c) => (
-                  <tr key={c.id} className="border-t border-border">
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{c.id}</td>
-                    <td className="px-4 py-3 font-semibold">{c.name}</td>
-                    <td className="px-4 py-3">{c.country}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{c.languages.join(", ")}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
-                        L{c.level} · {getLevel(c.level).title}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">
-                      {Math.round(c.accuracy * 100)}%
-                    </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
-                      {c.joinedDays}d ago
+                {candidates.length === 0 && (
+                  <tr>
+                    <td className="px-4 py-6 text-center text-muted-foreground" colSpan={6}>
+                      No candidates yet.
                     </td>
                   </tr>
-                ))}
+                )}
+                {candidates.map((c) => {
+                  const lvl = c.level ?? 0;
+                  return (
+                    <tr key={c.user_id} className="border-t border-border">
+                      <td className="px-4 py-3 font-semibold">
+                        {c.full_name ?? c.onboarding?.fullName ?? "—"}
+                      </td>
+                      <td className="px-4 py-3">{c.onboarding?.country ?? "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {c.onboarding?.languages?.join(", ") ?? "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
+                          L{lvl} · {getLevel(lvl).title}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {c.test_results
+                          ? `${Math.round(c.test_results.accuracy * 100)}%`
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">
+                        {timeAgo(c.created_at)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </section>
 
-        {/* Open tasks */}
         <section className="mt-10">
           <h2 className="font-serif text-xl font-bold">Open tasks</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {MOCK_TASKS.map((t) => (
-              <div
-                key={t.id}
-                className="rounded-lg border border-border bg-card p-4 shadow-sm"
-              >
+            {tasks.length === 0 && (
+              <p className="text-sm text-muted-foreground">No tasks posted yet.</p>
+            )}
+            {tasks.map((t) => (
+              <div key={t.id} className="rounded-lg border border-border bg-card p-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <p className="font-mono text-[10px] text-muted-foreground">{t.id}</p>
+                  <p className="font-mono text-[10px] text-muted-foreground">
+                    {t.employer_name}
+                  </p>
                   <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground">
-                    L{t.minLevel}+
+                    L{t.min_level}+
                   </span>
                 </div>
                 <p className="mt-1 font-semibold">{t.title}</p>
-                <p className="text-xs text-muted-foreground">{t.employer}</p>
                 <div className="mt-3 flex items-center justify-between text-xs">
                   <span className="font-mono text-primary">{t.hourly}</span>
                   <span className="text-muted-foreground">
-                    {t.languages.join(" · ")} · {t.hoursEstimate}h
+                    {t.languages.join(" · ") || "—"} · {t.hours_estimate}h
                   </span>
                 </div>
               </div>
             ))}
           </div>
         </section>
-
-        <p className="mt-12 text-center text-xs text-muted-foreground">
-          Demo data · admin console is read-only. Enable Lovable Cloud to wire live metrics.
-        </p>
       </main>
       <SiteFooter />
     </div>
   );
+}
+
+function timeAgo(iso: string) {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days === 0) return "today";
+  if (days === 1) return "1d ago";
+  return `${days}d ago`;
 }
 
 function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -235,6 +311,34 @@ function Panel({
       <h2 className="font-serif text-lg font-bold">{title}</h2>
       {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
       <div className="mt-5">{children}</div>
+    </div>
+  );
+}
+
+function Gate({
+  title,
+  body,
+  cta,
+  to,
+}: {
+  title: string;
+  body: string;
+  cta: string;
+  to: string;
+}) {
+  return (
+    <div className="min-h-screen">
+      <SiteHeader />
+      <main className="container mx-auto max-w-md px-4 py-20 text-center">
+        <h1 className="font-serif text-3xl font-bold">{title}</h1>
+        <p className="mt-3 text-muted-foreground">{body}</p>
+        <Link to={to} className="mt-6 inline-block">
+          <Button variant="hero" size="lg">
+            {cta}
+          </Button>
+        </Link>
+      </main>
+      <SiteFooter />
     </div>
   );
 }
