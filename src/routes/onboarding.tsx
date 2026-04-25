@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loadProfile, saveProfile, emptyProfile } from "@/lib/storage";
+import { useCandidateGate, emptyProfile } from "@/lib/useCandidate";
 import type { Onboarding } from "@/lib/types";
 
 export const Route = createFileRoute("/onboarding")({
@@ -47,23 +47,23 @@ const LANGUAGE_OPTIONS = [
 
 function OnboardingPage() {
   const navigate = useNavigate();
+  const { profile, ready, save } = useCandidateGate();
   const [step, setStep] = useState(1);
   const totalSteps = 4;
 
-  const [data, setData] = useState<Onboarding>(() => {
-    const existing = loadProfile()?.onboarding;
-    return (
-      existing ?? {
-        fullName: "",
-        country: "",
-        languages: [],
-        device: "smartphone",
-        internet: "ok",
-        hoursPerWeek: 10,
-        education: "secondary",
-      }
-    );
+  const [data, setData] = useState<Onboarding>({
+    fullName: "",
+    country: "",
+    languages: [],
+    device: "smartphone",
+    internet: "ok",
+    hoursPerWeek: 10,
+    education: "secondary",
   });
+
+  useEffect(() => {
+    if (profile?.onboarding) setData(profile.onboarding);
+  }, [profile]);
 
   const update = <K extends keyof Onboarding>(k: K, v: Onboarding[K]) =>
     setData((d) => ({ ...d, [k]: v }));
@@ -82,15 +82,17 @@ function OnboardingPage() {
     return true;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step < totalSteps) {
       setStep(step + 1);
       return;
     }
-    const profile = loadProfile() ?? emptyProfile();
-    saveProfile({ ...profile, onboarding: data });
+    const base = profile ?? emptyProfile();
+    await save({ ...base, onboarding: data });
     navigate({ to: "/screener" });
   };
+
+  if (!ready) return null;
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
