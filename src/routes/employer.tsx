@@ -1,9 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
-import { MOCK_CANDIDATES, MOCK_TASKS, type MockTask } from "@/lib/mockData";
+import { useAuth } from "@/lib/auth";
 import { getLevel } from "@/lib/levels";
+import {
+  fetchMyTasks,
+  createTask,
+  fetchApplicantsForTask,
+  type DbTask,
+} from "@/lib/db";
+import { supabase } from "@/integrations/supabase/client";
+import type { Onboarding, TestResults } from "@/lib/types";
 
 export const Route = createFileRoute("/employer")({
   head: () => ({
@@ -14,34 +22,97 @@ export const Route = createFileRoute("/employer")({
         content:
           "Post AI tasks and find verified, ethically-matched candidates by skill level, language, and availability.",
       },
-      { property: "og:title", content: "Employer Portal — Label-to-Ladder" },
-      {
-        property: "og:description",
-        content: "Hire by proven skill, not by resume. Verified Skills Passports for every candidate.",
-      },
     ],
   }),
   component: EmployerPage,
 });
 
-function EmployerPage() {
-  const [tasks, setTasks] = useState<MockTask[]>(MOCK_TASKS);
-  const [selected, setSelected] = useState<MockTask>(MOCK_TASKS[0]);
-  const [showForm, setShowForm] = useState(false);
+type ApplicantRow = {
+  user_id: string;
+  full_name: string | null;
+  level: number | null;
+  onboarding: Onboarding | null;
+  test_results: TestResults | null;
+  applied_at: string;
+};
 
-  const matches = useMemo(() => {
-    return MOCK_CANDIDATES.map((c) => {
-      const langOverlap = c.languages.some((l) => selected.languages.includes(l));
-      const meetsLevel = c.level >= selected.minLevel;
-      let score = 0;
-      if (meetsLevel) score += 50;
-      if (langOverlap) score += 25;
-      score += Math.round(c.accuracy * 25);
-      return { c, score, langOverlap, meetsLevel };
-    })
-      .filter((m) => m.meetsLevel)
-      .sort((a, b) => b.score - a.score);
+function EmployerPage() {
+  const { user, loading } = useAuth();
+  const [tasks, setTasks] = useState<DbTask[]>([]);
+  const [selected, setSelected] = useState<DbTask | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [applicants, setApplicants] = useState<ApplicantRow[]>([]);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchMyTasks(user.id).then((t) => {
+      setTasks(t);
+      setSelected(t[0] ?? null);
+      setTasksLoaded(true);
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!selected) {
+      setApplicants([]);
+      return;
+    }
+    loadApplicants(selected.id);
   }, [selected]);
+
+  async function loadApplicants(taskId: string) {
+    const apps = await fetchApplicantsForTask(taskId);
+    if (apps.length === 0) {
+      setApplicants([]);
+      return;
+    }
+    const ids = apps.map((a) => a.candidate_id);
+    const [{ data: profiles }, { data: cands }] = await Promise.all([
+      supabase.from("profiles").select("id, full_name").in("id", ids),
+      supabase
+        .from("candidate_profiles")
+        .select("user_id, level, onboarding, test_results")
+        .in("user_id", ids),
+    ]);
+    const nameMap = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+    const candMap = new Map((cands ?? []).map((c) => [c.user_id, c]));
+    setApplicants(
+      apps.map((a) => {
+        const c = candMap.get(a.candidate_id);
+        return {
+          user_id: a.candidate_id,
+          full_name: nameMap.get(a.candidate_id) ?? null,
+          level: c?.level ?? null,
+          onboarding: (c?.onboarding as Onboarding | null) ?? null,
+          test_results: (c?.test_results as TestResults | null) ?? null,
+          applied_at: a.applied_at,
+        };
+      }),
+    );
+  }
+
+  if (loading) return null;
+
+  if (!user) {
+    return (
+      <div className="min-h-screen">
+        <SiteHeader />
+        <main className="container mx-auto max-w-md px-4 py-20 text-center">
+          <h1 className="font-serif text-3xl font-bold">Sign in as an employer</h1>
+          <p className="mt-3 text-muted-foreground">
+            Create a free account to post tasks and review verified candidates.
+          </p>
+          <Link to="/auth" className="mt-6 inline-block">
+            <Button variant="hero" size="lg">
+              Sign in / Sign up
+            </Button>
+          </Link>
+        </main>
+        <SiteFooter />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,10 +123,9 @@ function EmployerPage() {
             <p className="font-mono text-xs uppercase tracking-widest text-secondary">
               Employer Portal
             </p>
-            <h1 className="mt-2 font-serif text-4xl font-bold">Tasks &amp; matches</h1>
+            <h1 className="mt-2 font-serif text-4xl font-bold">Tasks &amp; applicants</h1>
             <p className="mt-2 max-w-xl text-muted-foreground">
-              Post a task. We surface candidates whose verified Skills Passport meets your level
-              and language requirements.
+              Post a task. Candidates with a verified Skills Passport apply with one click.
             </p>
           </div>
           <Button variant="hero" size="lg" onClick={() => setShowForm((s) => !s)}>
@@ -65,8 +135,10 @@ function EmployerPage() {
 
         {showForm && (
           <NewTaskForm
-            onCreate={(t) => {
-              setTasks([t, ...tasks]);
+            employerId={user.id}
+            onCreate={async (input) => {
+              const t = await createTask(input);
+              setTasks((cur) => [t, ...cur]);
               setSelected(t);
               setShowForm(false);
             }}
@@ -74,13 +146,17 @@ function EmployerPage() {
         )}
 
         <div className="grid gap-8 lg:grid-cols-[360px_1fr]">
-          {/* Tasks list */}
           <aside className="space-y-3">
             <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-              Open tasks ({tasks.length})
+              Your tasks ({tasks.length})
             </p>
+            {tasksLoaded && tasks.length === 0 && (
+              <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                No tasks yet. Post your first one above.
+              </p>
+            )}
             {tasks.map((t) => {
-              const isActive = t.id === selected.id;
+              const isActive = t.id === selected?.id;
               return (
                 <button
                   key={t.id}
@@ -92,173 +168,210 @@ function EmployerPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-[10px] text-muted-foreground">{t.id}</span>
                     <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground">
-                      L{t.minLevel}+
+                      L{t.min_level}+
                     </span>
                   </div>
                   <p className="mt-1.5 font-semibold leading-snug">{t.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{t.employer}</p>
+                  <p className="mt-1 text-xs text-muted-foreground capitalize">{t.category}</p>
                   <p className="mt-2 font-mono text-xs text-primary">{t.hourly}</p>
                 </button>
               );
             })}
           </aside>
 
-          {/* Selected task + matches */}
           <section>
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    {selected.employer} · posted {selected.postedDays}d ago
-                  </p>
-                  <h2 className="mt-1 font-serif text-2xl font-bold">{selected.title}</h2>
+            {selected ? (
+              <>
+                <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {selected.employer_name}
+                      </p>
+                      <h2 className="mt-1 font-serif text-2xl font-bold">{selected.title}</h2>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Tag>{selected.category}</Tag>
+                      <Tag>Level {selected.min_level}+</Tag>
+                      {selected.languages.map((l) => (
+                        <Tag key={l}>{l}</Tag>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm text-muted-foreground">{selected.description}</p>
+                  <div className="mt-4 grid grid-cols-3 gap-4 border-t border-border pt-4 text-sm">
+                    <Field label="Pay" value={selected.hourly} />
+                    <Field label="Est. hours" value={`${selected.hours_estimate}h`} />
+                    <Field
+                      label="Min level"
+                      value={`L${selected.min_level} ${getLevel(selected.min_level).title}`}
+                    />
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Tag>{selected.category}</Tag>
-                  <Tag>Level {selected.minLevel}+</Tag>
-                  {selected.languages.map((l) => (
-                    <Tag key={l}>{l}</Tag>
-                  ))}
-                </div>
-              </div>
-              <p className="mt-4 text-sm text-muted-foreground">{selected.description}</p>
-              <div className="mt-4 grid grid-cols-3 gap-4 border-t border-border pt-4 text-sm">
-                <Field label="Pay" value={selected.hourly} />
-                <Field label="Est. hours" value={`${selected.hoursEstimate}h`} />
-                <Field label="Min level" value={`L${selected.minLevel} ${getLevel(selected.minLevel).title}`} />
-              </div>
-            </div>
 
-            <div className="mt-8">
-              <div className="flex items-baseline justify-between">
-                <h3 className="font-serif text-xl font-bold">
-                  Matched candidates{" "}
-                  <span className="font-sans text-sm font-medium text-muted-foreground">
-                    ({matches.length})
-                  </span>
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Ranked by skill fit · language overlap · accuracy
+                <div className="mt-8">
+                  <div className="flex items-baseline justify-between">
+                    <h3 className="font-serif text-xl font-bold">
+                      Applicants{" "}
+                      <span className="font-sans text-sm font-medium text-muted-foreground">
+                        ({applicants.length})
+                      </span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Verified Skills Passports · ranked by level + accuracy
+                    </p>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {applicants
+                      .slice()
+                      .sort((a, b) => (b.level ?? 0) - (a.level ?? 0))
+                      .map((c) => (
+                        <ApplicantCard key={c.user_id} c={c} task={selected} />
+                      ))}
+                    {applicants.length === 0 && (
+                      <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                        No applicants yet. Share your task — qualified candidates will see it on
+                        the job board.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border p-12 text-center">
+                <p className="font-serif text-lg font-semibold">No task selected</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Post a task to start receiving applications.
                 </p>
               </div>
-
-              <div className="mt-4 space-y-3">
-                {matches.map(({ c, score, langOverlap }) => (
-                  <article
-                    key={c.id}
-                    className="rounded-lg border border-border bg-card p-5 shadow-sm transition-smooth hover:shadow-elegant"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-serif text-lg font-bold">{c.name}</h4>
-                          <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success">
-                            ✓ Verified
-                          </span>
-                        </div>
-                        <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                          {c.id} · {c.country} · {c.languages.join(", ")}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                          Match
-                        </p>
-                        <p className="font-serif text-2xl font-bold text-primary">{score}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <Mini label="Level" value={`L${c.level}`} accent />
-                      <Mini label="Accuracy" value={`${Math.round(c.accuracy * 100)}%`} />
-                      <Mini label="Language" value={`${Math.round(c.language * 100)}%`} />
-                      <Mini label="Reasoning" value={`${Math.round(c.reasoning * 100)}%`} />
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        {c.interests.slice(0, 3).map((i) => (
-                          <span
-                            key={i}
-                            className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-[11px] text-muted-foreground"
-                          >
-                            {i}
-                          </span>
-                        ))}
-                        {!langOverlap && (
-                          <span className="rounded-full bg-warning/10 px-2.5 py-0.5 text-[11px] text-warning">
-                            ⚠ no language overlap
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                          View Passport
-                        </Button>
-                        <Button size="sm">Invite</Button>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-                {matches.length === 0 && (
-                  <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                    No candidates currently meet this task's level requirement.
-                  </p>
-                )}
-              </div>
-            </div>
+            )}
           </section>
         </div>
-
-        <p className="mt-12 text-center text-xs text-muted-foreground">
-          Demo data · candidate matching is local. Connect{" "}
-          <Link to="/" className="underline">
-            Lovable Cloud
-          </Link>{" "}
-          to persist tasks and invitations.
-        </p>
       </main>
       <SiteFooter />
     </div>
   );
 }
 
-function NewTaskForm({ onCreate }: { onCreate: (t: MockTask) => void }) {
+function ApplicantCard({ c, task }: { c: ApplicantRow; task: DbTask }) {
+  const langOverlap = c.onboarding?.languages?.some((l) =>
+    task.languages.some((tl) => tl.toLowerCase() === l.toLowerCase()),
+  );
+  return (
+    <article className="rounded-lg border border-border bg-card p-5 shadow-sm transition-smooth hover:shadow-elegant">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h4 className="font-serif text-lg font-bold">
+              {c.full_name ?? c.onboarding?.fullName ?? "Candidate"}
+            </h4>
+            <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success">
+              ✓ Verified
+            </span>
+          </div>
+          <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+            {c.onboarding?.country ?? "—"} · {c.onboarding?.languages?.join(", ") ?? "—"}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            Level
+          </p>
+          <p className="font-serif text-2xl font-bold text-primary">L{c.level ?? "?"}</p>
+        </div>
+      </div>
+
+      {c.test_results && (
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Mini label="Accuracy" value={`${Math.round(c.test_results.accuracy * 100)}%`} accent />
+          <Mini label="Language" value={`${Math.round(c.test_results.language * 100)}%`} />
+          <Mini label="Reasoning" value={`${Math.round(c.test_results.reasoning * 100)}%`} />
+          <Mini label="Hours/wk" value={`${c.onboarding?.hoursPerWeek ?? "?"}h`} />
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {!langOverlap && c.onboarding && (
+            <span className="rounded-full bg-warning/10 px-2.5 py-0.5 text-[11px] text-warning">
+              ⚠ no language overlap
+            </span>
+          )}
+          <span className="text-[11px] text-muted-foreground">
+            Applied {new Date(c.applied_at).toLocaleDateString()}
+          </span>
+        </div>
+        <Button size="sm">Invite</Button>
+      </div>
+    </article>
+  );
+}
+
+function NewTaskForm({
+  employerId,
+  onCreate,
+}: {
+  employerId: string;
+  onCreate: (t: Omit<DbTask, "id" | "created_at">) => Promise<void>;
+}) {
   const [title, setTitle] = useState("");
   const [employer, setEmployer] = useState("Your Company");
   const [minLevel, setMinLevel] = useState(2);
   const [hourly, setHourly] = useState("$5 / hr");
+  const [hours, setHours] = useState(15);
   const [languages, setLanguages] = useState("English");
+  const [category, setCategory] =
+    useState<DbTask["category"]>("annotation");
   const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onCreate({
-      id: "T-" + Math.floor(2000 + Math.random() * 7000),
-      employer,
-      title,
-      category: "annotation",
-      minLevel,
-      languages: languages.split(",").map((s) => s.trim()).filter(Boolean),
-      hourly,
-      hoursEstimate: 15,
-      postedDays: 0,
-      description: description || "—",
-    });
+    setBusy(true);
+    try {
+      await onCreate({
+        employer_id: employerId,
+        employer_name: employer,
+        title,
+        category,
+        min_level: minLevel,
+        languages: languages.split(",").map((s) => s.trim()).filter(Boolean),
+        hourly,
+        hours_estimate: hours,
+        description: description || "—",
+      });
+      setTitle("");
+      setDescription("");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <form
-      onSubmit={submit}
-      className="mb-10 rounded-xl border border-primary/30 bg-primary/5 p-6"
-    >
+    <form onSubmit={submit} className="mb-10 rounded-xl border border-primary/30 bg-primary/5 p-6">
       <h2 className="font-serif text-xl font-bold">Post a new task</h2>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Input label="Task title" value={title} onChange={setTitle} placeholder="e.g. Rate AI replies (English)" />
         <Input label="Employer / team" value={employer} onChange={setEmployer} />
+        <div>
+          <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            Category
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as DbTask["category"])}
+            className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+          >
+            {(["annotation", "rating", "review", "translation", "training"] as const).map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
             Min level
@@ -276,6 +389,19 @@ function NewTaskForm({ onCreate }: { onCreate: (t: MockTask) => void }) {
           </select>
         </div>
         <Input label="Hourly rate" value={hourly} onChange={setHourly} />
+        <div>
+          <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            Hours / week
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={60}
+            value={hours}
+            onChange={(e) => setHours(Number(e.target.value))}
+            className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+          />
+        </div>
         <Input
           label="Languages (comma-separated)"
           value={languages}
@@ -295,8 +421,8 @@ function NewTaskForm({ onCreate }: { onCreate: (t: MockTask) => void }) {
         </div>
       </div>
       <div className="mt-4 flex justify-end">
-        <Button type="submit" variant="hero">
-          Publish task
+        <Button type="submit" variant="hero" disabled={busy}>
+          {busy ? "Publishing…" : "Publish task"}
         </Button>
       </div>
     </form>

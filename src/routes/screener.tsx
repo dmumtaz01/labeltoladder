@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { ChipButton, ProgressBar } from "./onboarding";
-import { loadProfile, saveProfile, emptyProfile } from "@/lib/storage";
+import { useCandidateGate, emptyProfile } from "@/lib/useCandidate";
 import type { Screener } from "@/lib/types";
 
 export const Route = createFileRoute("/screener")({
@@ -28,7 +28,7 @@ const INTERESTS = [
 
 function ScreenerPage() {
   const navigate = useNavigate();
-  const [hasOnboarding, setHasOnboarding] = useState<boolean | null>(null);
+  const { profile, ready, save } = useCandidateGate();
   const [data, setData] = useState<Screener>({
     interests: [],
     domain: "",
@@ -37,12 +37,12 @@ function ScreenerPage() {
   });
 
   useEffect(() => {
-    const profile = loadProfile();
-    setHasOnboarding(!!profile?.onboarding);
     if (profile?.screener) setData(profile.screener);
-  }, []);
+  }, [profile]);
 
-  if (hasOnboarding === false) {
+  if (!ready) return null;
+
+  if (!profile?.onboarding) {
     return (
       <div className="min-h-screen">
         <SiteHeader />
@@ -69,9 +69,9 @@ function ScreenerPage() {
         : [...d.interests, i],
     }));
 
-  const handleSubmit = () => {
-    const profile = loadProfile() ?? emptyProfile();
-    saveProfile({ ...profile, screener: data });
+  const handleSubmit = async () => {
+    const base = profile ?? emptyProfile();
+    await save({ ...base, screener: data });
     navigate({ to: "/test" });
   };
 

@@ -2,17 +2,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
-import { loadProfile } from "@/lib/storage";
+import { useCandidateGate } from "@/lib/useCandidate";
+import { useAuth } from "@/lib/auth";
 import { getLevel } from "@/lib/levels";
 import {
-  matchJobsForCandidate,
-  loadApplications,
-  saveApplication,
-  removeApplication,
-  type JobMatch,
-} from "@/lib/matching";
-import type { CandidateProfile } from "@/lib/types";
-import type { MockTask } from "@/lib/mockData";
+  fetchTasks,
+  fetchMyApplications,
+  applyToTask,
+  withdrawApplication,
+  type DbTask,
+} from "@/lib/db";
+import { matchJobsForCandidate, type JobMatch } from "@/lib/matching";
 
 export const Route = createFileRoute("/jobs")({
   head: () => ({
@@ -23,12 +23,6 @@ export const Route = createFileRoute("/jobs")({
         content:
           "Browse AI tasks matched to your verified Skills Passport. Apply with one click — no resume needed.",
       },
-      { property: "og:title", content: "Find work — Label-to-Ladder" },
-      {
-        property: "og:description",
-        content:
-          "Personalized AI task matches based on your verified skill level, languages, and interests.",
-      },
     ],
   }),
   component: JobsPage,
@@ -37,23 +31,30 @@ export const Route = createFileRoute("/jobs")({
 type Filter = "all" | "eligible" | "stretch";
 
 function JobsPage() {
-  const [profile, setProfile] = useState<CandidateProfile | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const { user } = useAuth();
+  const { profile, ready } = useCandidateGate();
+  const [tasks, setTasks] = useState<DbTask[]>([]);
+  const [applications, setApplications] = useState<string[]>([]);
   const [filter, setFilter] = useState<Filter>("eligible");
   const [query, setQuery] = useState("");
-  const [applications, setApplications] = useState<string[]>([]);
-  const [openTask, setOpenTask] = useState<MockTask | null>(null);
+  const [openTask, setOpenTask] = useState<DbTask | null>(null);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
 
   useEffect(() => {
-    setProfile(loadProfile());
-    setApplications(loadApplications().map((a) => a.taskId));
-    setLoaded(true);
+    fetchTasks().then((t) => {
+      setTasks(t);
+      setTasksLoaded(true);
+    });
   }, []);
+
+  useEffect(() => {
+    if (user) fetchMyApplications(user.id).then(setApplications);
+  }, [user]);
 
   const matches = useMemo<JobMatch[]>(() => {
     if (!profile) return [];
-    return matchJobsForCandidate(profile);
-  }, [profile]);
+    return matchJobsForCandidate(profile, tasks);
+  }, [profile, tasks]);
 
   const filtered = useMemo(() => {
     let list = matches;
@@ -64,7 +65,7 @@ function JobsPage() {
       list = list.filter(
         (m) =>
           m.task.title.toLowerCase().includes(q) ||
-          m.task.employer.toLowerCase().includes(q) ||
+          m.task.employer_name.toLowerCase().includes(q) ||
           m.task.category.toLowerCase().includes(q),
       );
     }
@@ -74,16 +75,18 @@ function JobsPage() {
   const eligibleCount = matches.filter((m) => m.meetsLevel).length;
   const stretchCount = matches.length - eligibleCount;
 
-  const handleApply = (taskId: string) => {
-    saveApplication(taskId);
-    setApplications(loadApplications().map((a) => a.taskId));
+  const handleApply = async (taskId: string) => {
+    if (!user) return;
+    await applyToTask(taskId, user.id);
+    setApplications(await fetchMyApplications(user.id));
   };
-  const handleWithdraw = (taskId: string) => {
-    removeApplication(taskId);
-    setApplications(loadApplications().map((a) => a.taskId));
+  const handleWithdraw = async (taskId: string) => {
+    if (!user) return;
+    await withdrawApplication(taskId, user.id);
+    setApplications(await fetchMyApplications(user.id));
   };
 
-  if (!loaded) return null;
+  if (!ready || !tasksLoaded) return null;
 
   if (!profile?.testResults || !profile.onboarding) {
     return (
@@ -116,7 +119,6 @@ function JobsPage() {
     <div className="min-h-screen bg-background">
       <SiteHeader />
       <main className="container mx-auto px-4 py-10">
-        {/* Header strip */}
         <div className="mb-8 rounded-2xl border border-border bg-gradient-subtle p-6 md:p-8">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -128,8 +130,7 @@ function JobsPage() {
               </h1>
               <p className="mt-2 max-w-xl text-sm text-muted-foreground">
                 Ranked by your verified Level {profile.testResults.level} ·{" "}
-                {lvl.title}, languages and interests. Apply with one click — your
-                Passport is shared automatically.
+                {lvl.title}, languages and interests.
               </p>
             </div>
             <div className="flex gap-3">
@@ -140,7 +141,6 @@ function JobsPage() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             <FilterPill active={filter === "eligible"} onClick={() => setFilter("eligible")}>
@@ -161,7 +161,6 @@ function JobsPage() {
           />
         </div>
 
-        {/* Job grid */}
         <div className="grid gap-4 md:grid-cols-2">
           {filtered.map((m) => (
             <JobCard
@@ -177,13 +176,14 @@ function JobsPage() {
             <div className="md:col-span-2 rounded-xl border border-dashed border-border p-10 text-center">
               <p className="font-serif text-lg font-semibold">No tasks here yet</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Try a different filter or check back soon — new tasks post daily.
+                {tasks.length === 0
+                  ? "No employer has posted a task yet. Check back soon — or sign up as an employer to post the first one."
+                  : "Try a different filter."}
               </p>
             </div>
           )}
         </div>
 
-        {/* Applied summary */}
         {applications.length > 0 && (
           <div className="mt-12 rounded-xl border border-success/30 bg-success/5 p-6">
             <p className="font-mono text-[10px] uppercase tracking-widest text-success">
@@ -194,16 +194,10 @@ function JobsPage() {
               {applications.length === 1 ? "" : "s"}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Employers are notified and your Skills Passport is shared. You'll be
-              notified when they respond.
+              Employers can see your Skills Passport. They'll reach out when they're ready.
             </p>
           </div>
         )}
-
-        <p className="mt-12 text-center text-xs text-muted-foreground">
-          Demo data · applications are stored locally. Connect Lovable Cloud to send
-          them to employers.
-        </p>
       </main>
 
       {openTask && (
@@ -212,9 +206,7 @@ function JobsPage() {
           match={matches.find((m) => m.task.id === openTask.id)!}
           applied={applications.includes(openTask.id)}
           onClose={() => setOpenTask(null)}
-          onApply={() => {
-            handleApply(openTask.id);
-          }}
+          onApply={() => handleApply(openTask.id)}
           onWithdraw={() => handleWithdraw(openTask.id)}
         />
       )}
@@ -238,6 +230,10 @@ function JobCard({
   onOpen: () => void;
 }) {
   const { task, score, meetsLevel, langOverlap, interestOverlap, reasons, gap } = match;
+  const posted = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(task.created_at).getTime()) / 86400000),
+  );
   return (
     <article
       className={`flex flex-col rounded-xl border bg-card p-5 shadow-sm transition-smooth hover:shadow-elegant ${
@@ -247,21 +243,16 @@ function JobCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-muted-foreground">
-              {task.id}
-            </span>
             <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground">
-              L{task.minLevel}+
+              L{task.min_level}+
             </span>
             <span className="rounded-full border border-border px-2 py-0.5 text-[10px] capitalize text-muted-foreground">
               {task.category}
             </span>
           </div>
-          <h3 className="mt-2 font-serif text-lg font-bold leading-snug">
-            {task.title}
-          </h3>
+          <h3 className="mt-2 font-serif text-lg font-bold leading-snug">{task.title}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {task.employer} · posted {task.postedDays}d ago
+            {task.employer_name} · posted {posted}d ago
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -306,13 +297,11 @@ function JobCard({
 
       <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-3 text-sm">
         <Field label="Pay" value={task.hourly} strong />
-        <Field label="Hours" value={`${task.hoursEstimate}h`} />
-        <Field label="Langs" value={task.languages.join(", ")} />
+        <Field label="Hours" value={`${task.hours_estimate}h`} />
+        <Field label="Langs" value={task.languages.join(", ") || "—"} />
       </div>
 
-      <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
-        {task.description}
-      </p>
+      <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{task.description}</p>
 
       <div className="mt-auto flex gap-2 pt-4">
         <Button variant="outline" size="sm" onClick={onOpen} className="flex-1">
@@ -351,7 +340,7 @@ function TaskDialog({
   onApply,
   onWithdraw,
 }: {
-  task: MockTask;
+  task: DbTask;
   match: JobMatch;
   applied: boolean;
   onClose: () => void;
@@ -369,7 +358,7 @@ function TaskDialog({
       >
         <div className="bg-gradient-hero px-6 py-5 text-primary-foreground">
           <p className="font-mono text-[10px] uppercase tracking-widest text-accent">
-            {task.employer} · {task.id}
+            {task.employer_name}
           </p>
           <h2 className="mt-1 font-serif text-2xl font-bold">{task.title}</h2>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -377,7 +366,7 @@ function TaskDialog({
               {task.category}
             </span>
             <span className="rounded-full bg-card/15 px-2.5 py-0.5">
-              Level {task.minLevel}+ · {getLevel(task.minLevel).title}
+              Level {task.min_level}+ · {getLevel(task.min_level).title}
             </span>
             {task.languages.map((l) => (
               <span key={l} className="rounded-full bg-card/15 px-2.5 py-0.5">
@@ -389,7 +378,7 @@ function TaskDialog({
         <div className="space-y-5 p-6">
           <div className="grid grid-cols-3 gap-3">
             <Field label="Pay" value={task.hourly} strong />
-            <Field label="Hours / week" value={`${task.hoursEstimate}h`} />
+            <Field label="Hours / week" value={`${task.hours_estimate}h`} />
             <Field label="Match score" value={`${match.score}/100`} strong />
           </div>
           <div>
@@ -481,9 +470,7 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
         accent ? "border-primary/30 bg-primary/5" : "border-border bg-card"
       }`}
     >
-      <p className={`font-serif text-xl font-bold ${accent ? "text-primary" : ""}`}>
-        {value}
-      </p>
+      <p className={`font-serif text-xl font-bold ${accent ? "text-primary" : ""}`}>{value}</p>
       <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </p>

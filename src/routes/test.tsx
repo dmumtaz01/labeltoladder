@@ -1,11 +1,11 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "./onboarding";
 import { TEST_BANK, CATEGORY_LABELS } from "@/lib/tests";
 import { computeResults } from "@/lib/scoring";
-import { loadProfile, saveProfile, emptyProfile } from "@/lib/storage";
+import { useCandidateGate, emptyProfile } from "@/lib/useCandidate";
 import type { TaskAnswer } from "@/lib/types";
 
 export const Route = createFileRoute("/test")({
@@ -15,17 +15,12 @@ export const Route = createFileRoute("/test")({
 
 function TestPage() {
   const navigate = useNavigate();
-  const [ready, setReady] = useState<boolean | null>(null);
+  const { profile, ready, save } = useCandidateGate();
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<TaskAnswer[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [startTime, setStartTime] = useState<number>(() => Date.now());
-
-  useEffect(() => {
-    const p = loadProfile();
-    setReady(!!p?.screener);
-  }, []);
 
   const tasks = useMemo(() => TEST_BANK, []);
   const total = tasks.length;
@@ -46,9 +41,7 @@ function TestPage() {
 
   const handleNext = () => {
     if (idx + 1 >= total) {
-      finish([
-        ...answers,
-      ]);
+      finish([...answers]);
       return;
     }
     setIdx(idx + 1);
@@ -57,18 +50,20 @@ function TestPage() {
     setStartTime(Date.now());
   };
 
-  const finish = (final: TaskAnswer[]) => {
-    const profile = loadProfile() ?? emptyProfile();
-    const results = computeResults(final, profile.screener);
-    saveProfile({
-      ...profile,
+  const finish = async (final: TaskAnswer[]) => {
+    const base = profile ?? emptyProfile();
+    const results = computeResults(final, base.screener);
+    await save({
+      ...base,
       testResults: results,
       completedAt: new Date().toISOString(),
     });
     navigate({ to: "/results" });
   };
 
-  if (ready === false) {
+  if (!ready) return null;
+
+  if (!profile?.screener) {
     return (
       <div className="min-h-screen">
         <SiteHeader />
