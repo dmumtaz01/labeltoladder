@@ -10,7 +10,7 @@ export function SiteHeader() {
             Label<span className="text-secondary">·</span>to<span className="text-secondary">·</span>Ladder
           </span>
         </Link>
-        <nav className="hidden items-center gap-7 text-sm md:flex">
+        <nav className="hidden items-center gap-6 text-sm md:flex">
           <Link
             to="/how-it-works"
             className="text-muted-foreground transition-smooth hover:text-foreground"
@@ -23,7 +23,22 @@ export function SiteHeader() {
             className="text-muted-foreground transition-smooth hover:text-foreground"
             activeProps={{ className: "text-foreground font-medium" }}
           >
-            Skills Passport
+            Passport
+          </Link>
+          <span className="h-4 w-px bg-border" aria-hidden="true" />
+          <Link
+            to="/employer"
+            className="text-muted-foreground transition-smooth hover:text-foreground"
+            activeProps={{ className: "text-foreground font-medium" }}
+          >
+            Employer
+          </Link>
+          <Link
+            to="/admin"
+            className="text-muted-foreground transition-smooth hover:text-foreground"
+            activeProps={{ className: "text-foreground font-medium" }}
+          >
+            Admin
           </Link>
           <Link
             to="/onboarding"
