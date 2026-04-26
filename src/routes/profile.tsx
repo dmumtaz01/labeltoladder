@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/lib/auth";
 import { useCandidateGate } from "@/lib/useCandidate";
-import { LogOut, IdCard, Wallet, Trophy, ChevronRight, Briefcase } from "lucide-react";
+import { LogOut, IdCard, Wallet, Trophy, ChevronRight, Briefcase, PenTool, BarChart3 } from "lucide-react";
 
 export const Route = createFileRoute("/profile")({
   component: ProfilePage,
@@ -38,7 +38,34 @@ function ProfilePage() {
           </div>
         </div>
 
-        <ul className="mt-6 space-y-2">
+        {/* Quick Actions */}
+        <p className="mt-6 text-xs uppercase tracking-wider text-muted-foreground font-semibold">Work</p>
+        <ul className="mt-2 space-y-2">
+          {[
+            { to: "/annotation", icon: PenTool, label: "Start Annotation" },
+            { to: "/daily-summary", icon: BarChart3, label: "Daily Summary" },
+          ].map((it) => {
+            const Icon = it.icon;
+            return (
+              <li key={it.to}>
+                <Link
+                  to={it.to}
+                  className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/5 p-3 shadow-soft transition-smooth hover:-translate-y-0.5"
+                >
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent/20 text-accent">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="flex-1 text-sm font-medium">{it.label}</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Navigation */}
+        <p className="mt-6 text-xs uppercase tracking-wider text-muted-foreground font-semibold">Account</p>
+        <ul className="mt-2 space-y-2">
           {[
             { to: "/passport", icon: IdCard, label: "My Skills Passport" },
             { to: "/jobs", icon: Briefcase, label: "Available jobs" },

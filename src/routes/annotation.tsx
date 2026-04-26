@@ -4,86 +4,127 @@ import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatBubble } from "@/components/ChatBubble";
-import { PenTool, Send } from "lucide-react";
+import { PenTool, Send, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  fetchMyAnnotationJobs,
+  assignAnnotationJob,
+  submitAnnotationJob,
+  type AnnotationJob,
+} from "@/lib/db";
 
 export const Route = createFileRoute("/annotation")({
   component: AnnotationPage,
 });
 
-type Job = {
-  id: string;
-  task_id: string;
-  payload: { prompt: string; options?: string[] } | null;
-  status: string;
-  payout_cents: number;
-};
-
-const SAMPLE_PROMPT = {
-  prompt: "Read the AI's reply below. Is the answer factually correct? If not, write a one-sentence correction.",
-  context: "User asked: 'How many continents are there?' AI answered: 'There are 5 continents on Earth.'",
-};
+const SAMPLE_PROMPTS = [
+  {
+    prompt: "Read the AI's reply below. Is the answer factually correct? If not, write a one-sentence correction.",
+    context: "User asked: 'How many continents are there?' AI answered: 'There are 5 continents on Earth.'",
+    options: ["Correct", "Incorrect"],
+  },
+  {
+    prompt: "Rate the helpfulness of this AI response on a scale of 1-5.",
+    context: "User asked: 'How do I make a good pizza?' AI provided a detailed recipe with steps.",
+    options: ["1 - Not helpful", "2 - Somewhat helpful", "3 - Helpful", "4 - Very helpful", "5 - Excellent"],
+  },
+  {
+    prompt: "Does this translation accurately convey the meaning of the original text?",
+    context: "Original: 'La belle vue de la montagne' Translation: 'The beautiful view of the mountain'",
+    options: ["Yes, accurate", "No, needs correction"],
+  },
+];
 
 function AnnotationPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [job, setJob] = useState<Job | null>(null);
+  const [job, setJob] = useState<AnnotationJob | null>(null);
   const [answer, setAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [loadingJob, setLoadingJob] = useState(true);
+  const [completedCount, setCompletedCount] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
   }, [user, loading, navigate]);
 
+  // Load user's completed jobs for today
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: existing } = await supabase
-        .from("annotation_jobs")
-        .select("*")
-        .eq("candidate_id", user.id)
-        .eq("status", "assigned")
-        .limit(1)
-        .maybeSingle();
-      if (existing) {
-        setJob(existing as unknown as Job);
-        return;
+      const jobs = await fetchMyAnnotationJobs(user.id);
+      const approvedToday = jobs.filter(
+        (j) =>
+          j.status === "approved" &&
+          new Date(j.updated_at).toDateString() === new Date().toDateString()
+      ).length;
+      setCompletedCount(approvedToday);
+    })();
+  }, [user]);
+
+  // Load or create current job
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      setLoadingJob(true);
+      try {
+        const jobs = await fetchMyAnnotationJobs(user.id);
+        const existingJob = jobs.find((j) => j.status === "assigned");
+
+        if (existingJob) {
+          setJob(existingJob);
+          setLoadingJob(false);
+          return;
+        }
+
+        // Get a random task
+        const { data: tasks } = await supabase
+          .from("employer_tasks")
+          .select("id")
+          .limit(10);
+
+        if (!tasks || tasks.length === 0) {
+          setLoadingJob(false);
+          return;
+        }
+
+        const randomTask = tasks[Math.floor(Math.random() * tasks.length)];
+        const randomPrompt = SAMPLE_PROMPTS[Math.floor(Math.random() * SAMPLE_PROMPTS.length)];
+
+        const newJob = await assignAnnotationJob(
+          randomTask.id,
+          user.id,
+          randomPrompt,
+          75 // $0.75 payout
+        );
+        setJob(newJob);
+      } catch (err) {
+        console.error("Error loading job:", err);
+        toast.error("Failed to load annotation task");
+      } finally {
+        setLoadingJob(false);
       }
-      // create a demo job from first available task
-      const { data: task } = await supabase
-        .from("employer_tasks")
-        .select("id")
-        .limit(1)
-        .maybeSingle();
-      if (!task) return;
-      const { data: created } = await supabase
-        .from("annotation_jobs")
-        .insert({
-          task_id: task.id,
-          candidate_id: user.id,
-          payload: SAMPLE_PROMPT,
-          payout_cents: 75,
-        })
-        .select()
-        .single();
-      if (created) setJob(created as unknown as Job);
     })();
   }, [user]);
 
   async function submit() {
-    if (!job || !answer.trim()) return;
-    setSubmitting(true);
-    const { error } = await supabase
-      .from("annotation_jobs")
-      .update({ submission: { answer }, status: "submitted", submitted_at: new Date().toISOString() })
-      .eq("id", job.id);
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
+    if (!job || !answer.trim()) {
+      toast.error("Please provide an answer");
       return;
     }
-    toast.success("Submitted! Heading to quality review…");
-    navigate({ to: "/quality-review", search: { jobId: job.id } as never });
+    setSubmitting(true);
+    try {
+      await submitAnnotationJob(job.id, { answer });
+      toast.success("Submitted! Heading to quality review…");
+      setTimeout(() => {
+        navigate({ to: "/quality-review", search: { jobId: job.id } as never });
+      }, 500);
+    } catch (err) {
+      console.error("Error submitting:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to submit");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -95,12 +136,42 @@ function AnnotationPage() {
           </div>
           <div>
             <p className="text-xs uppercase tracking-widest text-muted-foreground">Active task</p>
-            <h1 className="font-serif text-xl">Fact-check this AI reply</h1>
+            <h1 className="font-serif text-xl">Data Annotation</h1>
           </div>
         </div>
 
-        {!job ? (
+        {/* Progress indicator */}
+        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+          <CheckCircle2 className="h-4 w-4 text-success" />
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground">Tasks completed today</p>
+            <p className="font-semibold text-sm">{completedCount} approved tasks</p>
+          </div>
+          <span className="rounded-full bg-success/10 px-2 py-1 text-xs font-bold text-success">
+            ${(completedCount * 0.75).toFixed(2)}
+          </span>
+        </div>
+
+        {loadingJob ? (
           <p className="mt-8 text-center text-sm text-muted-foreground">Loading task…</p>
+        ) : !job ? (
+          <div className="mt-8 rounded-2xl border border-warning bg-warning/5 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm">No tasks available</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Check back later or browse available jobs
+                </p>
+                <button
+                  onClick={() => navigate({ to: "/jobs" })}
+                  className="mt-3 inline-block rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  View all jobs →
+                </button>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             <article className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-soft">
@@ -111,7 +182,7 @@ function AnnotationPage() {
                 </blockquote>
               )}
               <p className="mt-3 text-[11px] uppercase tracking-wider text-muted-foreground">
-                Payout: ${(job.payout_cents / 100).toFixed(2)}
+                💰 Payout: ${(job.payout_cents / 100).toFixed(2)}
               </p>
             </article>
 

@@ -2,10 +2,17 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/integrations/supabase/client";
 import { streamAgent } from "@/lib/aiClient";
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { ShieldCheck, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import {
+  fetchAnnotationJobById,
+  createQualityReview,
+  approveAnnotationJob,
+  rejectAnnotationJob,
+  recordPayment,
+  type AnnotationJob,
+} from "@/lib/db";
 
 type Search = { jobId?: string };
 
@@ -18,11 +25,12 @@ function QualityReviewPage() {
   const { user, loading } = useAuth();
   const { jobId } = useSearch({ from: "/quality-review" });
   const navigate = useNavigate();
-  const [job, setJob] = useState<{ id: string; payload: { prompt?: string }; submission: { answer?: string }; payout_cents: number; task_id: string } | null>(null);
+  const [job, setJob] = useState<AnnotationJob | null>(null);
   const [aiText, setAiText] = useState("");
   const [score, setScore] = useState<number | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [done, setDone] = useState(false);
+  const [approved, setApproved] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -31,56 +39,80 @@ function QualityReviewPage() {
   useEffect(() => {
     if (!jobId || !user) return;
     (async () => {
-      const { data } = await supabase.from("annotation_jobs").select("*").eq("id", jobId).maybeSingle();
-      if (data) setJob(data as never);
+      try {
+        const fetchedJob = await fetchAnnotationJobById(jobId);
+        if (fetchedJob) {
+          setJob(fetchedJob);
+        } else {
+          toast.error("Job not found");
+        }
+      } catch (err) {
+        console.error("Error loading job:", err);
+        toast.error("Failed to load job");
+      }
     })();
   }, [jobId, user]);
 
   async function runAiReview() {
-    if (!job) return;
+    if (!job || !user) return;
     setReviewing(true);
     setAiText("");
     let acc = "";
-    await streamAgent({
-      messages: [
-        {
-          role: "user",
-          content: `Task: ${job.payload?.prompt ?? "(none)"}\n\nCandidate's submission: ${job.submission?.answer ?? "(empty)"}`,
+
+    try {
+      await streamAgent({
+        messages: [
+          {
+            role: "user",
+            content: `Task: ${(job.payload as { prompt?: string })?.prompt ?? "(none)"}\n\nCandidate's submission: ${(job.submission as { answer?: string })?.answer ?? "(empty)"}\n\nPlease review this annotation for accuracy, helpfulness, and completeness. Provide feedback and give a SCORE between 0.0 and 1.0 on the next line in format: SCORE: [number]`,
+          },
+        ],
+        mode: "reviewer",
+        onDelta: (c) => {
+          acc += c;
+          setAiText(acc);
         },
-      ],
-      mode: "reviewer",
-      onDelta: (c) => {
-        acc += c;
-        setAiText(acc);
-      },
-      onError: (e) => toast.error(e),
-      onDone: async () => {
-        // Parse score
-        const m = acc.match(/SCORE:\s*([0-9]+(?:\.[0-9]+)?)/i);
-        const s = m ? Math.min(1, Math.max(0, parseFloat(m[1]))) : 0.7;
-        setScore(s);
-        // Persist review + auto-approve / payment
-        await supabase.from("quality_reviews").insert({
-          annotation_job_id: job.id,
-          reviewer: "ai",
-          score: s,
-          feedback: acc,
-        });
-        const newStatus = s >= 0.6 ? "approved" : "rejected";
-        await supabase.from("annotation_jobs").update({ status: newStatus }).eq("id", job.id);
-        if (newStatus === "approved" && user) {
-          await supabase.from("payments").insert({
-            candidate_id: user.id,
-            annotation_job_id: job.id,
-            amount_cents: job.payout_cents,
-            status: "paid",
-            reference: "ai-auto",
-          });
-        }
-        setDone(true);
-        setReviewing(false);
-      },
-    });
+        onError: (e) => {
+          toast.error(e);
+          setReviewing(false);
+        },
+        onDone: async () => {
+          try {
+            // Parse score
+            const m = acc.match(/SCORE:\s*([0-9]+(?:\.[0-9]+)?)/i);
+            const s = m ? Math.min(1, Math.max(0, parseFloat(m[1]))) : 0.7;
+            setScore(s);
+
+            // Persist review
+            await createQualityReview(job.id, "ai", s, acc);
+
+            // Auto-approve/reject based on score threshold
+            const willApprove = s >= 0.6;
+            if (willApprove) {
+              await approveAnnotationJob(job.id);
+              setApproved(true);
+              // Record payment
+              await recordPayment(user.id, job.payout_cents, job.id);
+              toast.success("✅ Approved! Payment recorded.");
+            } else {
+              await rejectAnnotationJob(job.id);
+              toast.info("Work rejected. Quality score too low. Try the next task.");
+            }
+
+            setDone(true);
+          } catch (err) {
+            console.error("Error processing review:", err);
+            toast.error("Failed to process review");
+          } finally {
+            setReviewing(false);
+          }
+        },
+      });
+    } catch (err) {
+      console.error("Error in AI review:", err);
+      toast.error(err instanceof Error ? err.message : "AI review failed");
+      setReviewing(false);
+    }
   }
 
   return (
@@ -91,8 +123,8 @@ function QualityReviewPage() {
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Step 9</p>
-            <h1 className="font-serif text-xl">AI quality review</h1>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Quality Check</p>
+            <h1 className="font-serif text-xl">AI Review Your Work</h1>
           </div>
         </div>
 
@@ -101,8 +133,8 @@ function QualityReviewPage() {
         ) : (
           <>
             <article className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-soft">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your answer</p>
-              <p className="mt-2 text-sm">{job.submission?.answer ?? "(empty)"}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Your Answer</p>
+              <p className="text-sm">{(job.submission as { answer?: string })?.answer ?? "(empty)"}</p>
             </article>
 
             {!done && (
@@ -118,28 +150,61 @@ function QualityReviewPage() {
 
             {(aiText || done) && (
               <article className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-soft">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">AI feedback</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">AI Feedback</p>
                   {score !== null && (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                        score >= 0.6 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
-                      }`}
-                    >
-                      {(score * 100).toFixed(0)}%
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {score >= 0.6 ? (
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      )}
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                          score >= 0.6 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
+                        }`}
+                      >
+                        {(score * 100).toFixed(0)}%
+                      </span>
+                    </div>
                   )}
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm">{aiText || "…"}</p>
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{aiText || "…"}</p>
               </article>
             )}
 
             {done && (
+              <div className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-soft">
+                {approved ? (
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-sm">✅ Work Approved!</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        You earned ${(job.payout_cents / 100).toFixed(2)} for this task.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-sm">Work Rejected</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        The quality score was below the threshold. Try another task to improve your skills.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {done && (
               <button
-                onClick={() => navigate({ to: "/payment" })}
+                onClick={() => navigate({ to: approved ? "/journey" : "/annotation" })}
                 className="mt-4 w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-soft transition-smooth hover:opacity-90"
               >
-                {score !== null && score >= 0.6 ? "View earnings →" : "See payment status →"}
+                {approved ? "View your progress →" : "Start next task →"}
               </button>
             )}
           </>
