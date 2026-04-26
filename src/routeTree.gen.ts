@@ -22,6 +22,7 @@ import { Route as JourneyRouteImport } from './routes/journey'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as EmployerRouteImport } from './routes/employer'
+import { Route as DailySummaryRouteImport } from './routes/daily-summary'
 import { Route as ConsentRouteImport } from './routes/consent'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AssessmentRouteImport } from './routes/assessment'
@@ -94,6 +95,11 @@ const EmployerRoute = EmployerRouteImport.update({
   path: '/employer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DailySummaryRoute = DailySummaryRouteImport.update({
+  id: '/daily-summary',
+  path: '/daily-summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConsentRoute = ConsentRouteImport.update({
   id: '/consent',
   path: '/consent',
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/assessment': typeof AssessmentRoute
   '/auth': typeof AuthRoute
   '/consent': typeof ConsentRoute
+  '/daily-summary': typeof DailySummaryRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/jobs': typeof JobsRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/assessment': typeof AssessmentRoute
   '/auth': typeof AuthRoute
   '/consent': typeof ConsentRoute
+  '/daily-summary': typeof DailySummaryRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/jobs': typeof JobsRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/assessment': typeof AssessmentRoute
   '/auth': typeof AuthRoute
   '/consent': typeof ConsentRoute
+  '/daily-summary': typeof DailySummaryRoute
   '/employer': typeof EmployerRoute
   '/how-it-works': typeof HowItWorksRoute
   '/jobs': typeof JobsRoute
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/assessment'
     | '/auth'
     | '/consent'
+    | '/daily-summary'
     | '/employer'
     | '/how-it-works'
     | '/jobs'
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/assessment'
     | '/auth'
     | '/consent'
+    | '/daily-summary'
     | '/employer'
     | '/how-it-works'
     | '/jobs'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/assessment'
     | '/auth'
     | '/consent'
+    | '/daily-summary'
     | '/employer'
     | '/how-it-works'
     | '/jobs'
@@ -262,6 +274,7 @@ export interface RootRouteChildren {
   AssessmentRoute: typeof AssessmentRoute
   AuthRoute: typeof AuthRoute
   ConsentRoute: typeof ConsentRoute
+  DailySummaryRoute: typeof DailySummaryRoute
   EmployerRoute: typeof EmployerRoute
   HowItWorksRoute: typeof HowItWorksRoute
   JobsRoute: typeof JobsRoute
@@ -370,6 +383,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmployerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/daily-summary': {
+      id: '/daily-summary'
+      path: '/daily-summary'
+      fullPath: '/daily-summary'
+      preLoaderRoute: typeof DailySummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/consent': {
       id: '/consent'
       path: '/consent'
@@ -422,6 +442,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssessmentRoute: AssessmentRoute,
   AuthRoute: AuthRoute,
   ConsentRoute: ConsentRoute,
+  DailySummaryRoute: DailySummaryRoute,
   EmployerRoute: EmployerRoute,
   HowItWorksRoute: HowItWorksRoute,
   JobsRoute: JobsRoute,
