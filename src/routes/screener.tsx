@@ -70,10 +70,10 @@ function ScreenerPage() {
     }));
 
   const handleSubmit = async () => {
-    const base = profile ?? emptyProfile();
-    await save({ ...base, screener: data });
-    navigate({ to: "/test" });
-  };
+  const base = profile ?? emptyProfile();
+  await save({ ...base, screener: data });
+  navigate({ to: "/journey" });
+};
 
   return (
     <div className="min-h-screen bg-gradient-subtle">

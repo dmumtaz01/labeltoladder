@@ -32,9 +32,17 @@ function AuthPage() {
 
   const userId = user?.id;
   useEffect(() => {
-    if (!loading && userId) navigate({ to: "/assessment" });
+    // Redirect authenticated users to assessment, but wait for a brief moment
+    // to ensure auth state is fully settled
+    if (!loading && userId) {
+      const timer = setTimeout(() => {
+        navigate({ to: "/assessment" });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, loading]);
+
 
   useEffect(() => {
     if (emailInputRef.current) {

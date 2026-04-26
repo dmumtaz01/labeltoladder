@@ -94,15 +94,14 @@ function OnboardingPage() {
     return true;
   };
 
-  const handleNext = async () => {
-    if (step < totalSteps) {
-      setStep(step + 1);
-      return;
-    }
-    const base = profile ?? emptyProfile();
-    await save({ ...base, onboarding: data });
-    navigate({ to: "/screener" });
-  };
+const handleNext = async () => {
+  if (step < totalSteps) {
+    setStep(step + 1);
+    return;
+  }
+
+  navigate({ to: "/screener" });
+};
 
   if (!ready) return null;
 

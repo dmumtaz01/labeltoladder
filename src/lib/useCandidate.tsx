@@ -46,11 +46,22 @@ export function CandidateProvider({ children }: { children: React.ReactNode }) {
 
     let active = true;
 
-    fetchCandidateProfile(user.id).then((profileData) => {
-      if (!active) return;
-      setProfile(profileData);
-      setReady(true);
-    });
+    const loadProfile = async () => {
+      try {
+        const profileData = await fetchCandidateProfile(user.id);
+        if (!active) return;
+        setProfile(profileData);
+        setReady(true);
+      } catch (err) {
+        console.error("Failed to load candidate profile:", err);
+        if (!active) return;
+        // Still mark ready even if profile doesn't exist yet (new user)
+        setProfile(emptyProfile());
+        setReady(true);
+      }
+    };
+
+    loadProfile();
 
     return () => {
       active = false;

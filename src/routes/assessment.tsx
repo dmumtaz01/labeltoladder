@@ -28,6 +28,7 @@ function AssessmentPage() {
       return;
     }
 
+    // If user exists and profile is ready, route to next step
     if (!loading && user && ready) {
       if (!profile?.onboarding) {
         navigate({ to: "/onboarding" });
@@ -38,6 +39,14 @@ function AssessmentPage() {
       } else {
         navigate({ to: "/jobs" });
       }
+    }
+
+    // If user exists but profile not ready (first time), wait briefly then route to onboarding
+    if (!loading && user && !ready) {
+      const timer = setTimeout(() => {
+        navigate({ to: "/onboarding" });
+      }, 800);
+      return () => clearTimeout(timer);
     }
   }, [user, loading, profile, ready, navigate]);
 
