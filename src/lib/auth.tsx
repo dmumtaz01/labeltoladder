@@ -24,62 +24,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<string[]>([]);
-  const demoMode = true;
 
   useEffect(() => {
-    if (demoMode) {
-  setSession({
-    access_token: "demo",
-    refresh_token: "demo",
-    user: {
-      id: "demo-amara",
-      email: "amaraokoke@gmail.com"
-    }
-  } as any);
-
-  setLoading(false);
-  return;
-}
     let active = true;
 
-    async function initializeSession() {
-      if (typeof window !== "undefined") {
-        const url = window.location.href;
-        const callbackParams = url.includes("access_token") && url.includes("refresh_token");
+    // Set up auth state listener FIRST
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!active) return;
+      setSession(newSession);
+      setLoading(false);
+    });
 
-        if (callbackParams) {
-          try {
-            const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
-            if (!active) return;
-            if (error) {
-              console.error("Supabase callback URL session exchange failed", error.message);
-            }
-            if (data?.session) {
-              setSession(data.session);
-              setLoading(false);
-            }
-          } catch (err) {
-            console.error("Session exchange error:", err);
-          }
-
-          // Clean callback params from URL
-          const cleanUrl = window.location.origin + window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
-          return; // Don't fetch session again if we just set it from callback
-        }
-      }
-
-      const { data } = await supabase.auth.getSession();
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       setSession(data.session);
-      setLoading(false);
-    }
-
-    initializeSession();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, authState) => {
-      if (!active) return;
-      setSession(authState.session ?? null);
       setLoading(false);
     });
 
