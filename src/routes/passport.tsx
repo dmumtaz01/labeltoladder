@@ -217,7 +217,7 @@ const r = profile.screener ?? {
           </div>
           <Link to="/jobs">
             <Button variant="hero" size="lg">
-              Find work →
+              Find jobs now
             </Button>
           </Link>
         </div>
