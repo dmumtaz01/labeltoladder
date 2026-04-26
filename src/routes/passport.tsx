@@ -26,7 +26,7 @@ function PassportPage() {
 
   if (!ready) return null;
 
-  if (!profile?.screener || !profile.onboarding) {
+  if (!profile?.screener || !profile.onboarding || !profile.testResults) {
     return (
       <div className="min-h-screen">
         <SiteHeader />
@@ -47,16 +47,7 @@ function PassportPage() {
   }
 
   const o = profile.onboarding;
-const r = profile.screener ?? {
-  level: 1,
-  rawScore: 60,
-  accuracy: 0.7,
-  consistency: 0.7,
-  speed: 0.7,
-  language: 0.7,
-  reasoning: 0.7,
-  reliability: 0.7
-};
+  const r = profile.testResults;
   const lvl = getLevel(r.level);
   const completed = profile.completedAt
     ? new Date(profile.completedAt).toLocaleDateString(undefined, {
