@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     // For live preview during dev, point at your published URL OR your dev URL:
-    // url: 'https://20c52ed5-ceb8-4a7b-9188-3297c47b3b9c.lovableproject.com?forceHideBadge=true',
+    // url: 'http://localhost:8081/',
     cleartext: true,
   },
   ios: {

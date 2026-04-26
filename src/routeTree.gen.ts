@@ -24,6 +24,7 @@ import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as EmployerRouteImport } from './routes/employer'
 import { Route as ConsentRouteImport } from './routes/consent'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AssessmentRouteImport } from './routes/assessment'
 import { Route as AnnotationRouteImport } from './routes/annotation'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -103,6 +104,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AssessmentRoute = AssessmentRouteImport.update({
+  id: '/assessment',
+  path: '/assessment',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AnnotationRoute = AnnotationRouteImport.update({
   id: '/annotation',
   path: '/annotation',
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/annotation': typeof AnnotationRoute
+  '/assessment': typeof AssessmentRoute
   '/auth': typeof AuthRoute
   '/consent': typeof ConsentRoute
   '/employer': typeof EmployerRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/annotation': typeof AnnotationRoute
+  '/assessment': typeof AssessmentRoute
   '/auth': typeof AuthRoute
   '/consent': typeof ConsentRoute
   '/employer': typeof EmployerRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/annotation': typeof AnnotationRoute
+  '/assessment': typeof AssessmentRoute
   '/auth': typeof AuthRoute
   '/consent': typeof ConsentRoute
   '/employer': typeof EmployerRoute
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/annotation'
+    | '/assessment'
     | '/auth'
     | '/consent'
     | '/employer'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/annotation'
+    | '/assessment'
     | '/auth'
     | '/consent'
     | '/employer'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/annotation'
+    | '/assessment'
     | '/auth'
     | '/consent'
     | '/employer'
@@ -247,6 +259,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AnnotationRoute: typeof AnnotationRoute
+  AssessmentRoute: typeof AssessmentRoute
   AuthRoute: typeof AuthRoute
   ConsentRoute: typeof ConsentRoute
   EmployerRoute: typeof EmployerRoute
@@ -371,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/assessment': {
+      id: '/assessment'
+      path: '/assessment'
+      fullPath: '/assessment'
+      preLoaderRoute: typeof AssessmentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/annotation': {
       id: '/annotation'
       path: '/annotation'
@@ -399,6 +419,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AnnotationRoute: AnnotationRoute,
+  AssessmentRoute: AssessmentRoute,
   AuthRoute: AuthRoute,
   ConsentRoute: ConsentRoute,
   EmployerRoute: EmployerRoute,
@@ -418,3 +439,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

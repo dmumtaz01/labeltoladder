@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,22 +26,31 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   const userId = user?.id;
   useEffect(() => {
-    if (!loading && userId) navigate({ to: "/onboarding" });
+    if (!loading && userId) navigate({ to: "/assessment" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, loading]);
+
+  useEffect(() => {
+    if (emailInputRef.current) {
+      emailInputRef.current.focus();
+    }
+  }, [mode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
       if (mode === "signup") {
-        const redirectUrl = `${window.location.origin}/onboarding`;
-        const { error } = await supabase.auth.signUp({
+        const redirectUrl = `${window.location.origin}/assessment`;
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -49,11 +58,26 @@ function AuthPage() {
             data: { full_name: fullName },
           },
         });
+
         if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+
+        if (data?.session?.user) {
+          return;
+        }
+
+        if (data?.user) {
+          setInfo(
+            "A confirmation email was sent. Please open the link to finish signing up and continue to assessment."
+          );
+          return;
+        }
+
+        setInfo("Sign-up initiated. Please check your email.");
+        return;
       }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -68,7 +92,7 @@ function AuthPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/onboarding`,
+          redirectTo: `${window.location.origin}/assessment`,
         },
       });
       if (error) throw error;
@@ -110,33 +134,47 @@ function AuthPage() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
+          <form onSubmit={handleSubmit} className="space-y-4" aria-busy={busy}>
+            <fieldset disabled={busy} className="space-y-4">
+              {mode === "signup" && (
+                <Field
+                  label="Full name"
+                  name="full_name"
+                  value={fullName}
+                  onChange={setFullName}
+                  placeholder="Amara Okeke"
+                  required
+                  autoComplete="name"
+                />
+              )}
               <Field
-                label="Full name"
-                value={fullName}
-                onChange={setFullName}
-                placeholder="Amara Okeke"
+                label="Email"
+                name="email"
+                value={email}
+                onChange={setEmail}
+                type="email"
+                placeholder="you@example.com"
                 required
+                autoComplete="email"
+                autoFocus={mode === "signin"}
               />
+              <Field
+                label="Password"
+                name="password"
+                value={password}
+                onChange={setPassword}
+                type="password"
+                placeholder="At least 8 characters"
+                required
+                minLength={8}
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              />
+            </fieldset>
+            {info && (
+              <p className="rounded-md bg-primary/10 px-3 py-2 text-xs text-primary">
+                {info}
+              </p>
             )}
-            <Field
-              label="Email"
-              value={email}
-              onChange={setEmail}
-              type="email"
-              placeholder="you@example.com"
-              required
-            />
-            <Field
-              label="Password"
-              value={password}
-              onChange={setPassword}
-              type="password"
-              placeholder="At least 8 characters"
-              required
-              minLength={8}
-            />
             {error && (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 {error}
@@ -154,6 +192,7 @@ function AuthPage() {
               onClick={() => {
                 setMode(mode === "signin" ? "signup" : "signin");
                 setError(null);
+                setInfo(null);
               }}
             >
               {mode === "signin" ? "Create one" : "Sign in"}
@@ -174,20 +213,28 @@ function AuthPage() {
 
 function Field({
   label,
+  name,
   value,
   onChange,
   type = "text",
   placeholder,
   required,
   minLength,
+  autoComplete,
+  autoFocus,
+  disabled,
 }: {
   label: string;
+  name?: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
   placeholder?: string;
   required?: boolean;
   minLength?: number;
+  autoComplete?: string;
+  autoFocus?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label className="block">
@@ -195,12 +242,17 @@ function Field({
         {label}
       </span>
       <input
+        id={name}
+        name={name}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
         minLength={minLength}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        disabled={disabled}
         className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
       />
     </label>

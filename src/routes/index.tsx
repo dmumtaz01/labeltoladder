@@ -1,6 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ArrowRight, Sparkles, Briefcase, Trophy, IdCard, Layers } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { useCandidate } from "@/lib/useCandidate";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -15,6 +18,29 @@ export const Route = createFileRoute("/")({
 });
 
 function HomePage() {
+  const { user, loading } = useAuth();
+  const { profile, ready } = useCandidate();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate({ to: "/assessment" });
+    }
+  }, [user, loading, navigate]);
+
+  if (loading || (user && !ready)) {
+    return (
+      <AppShell>
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <section className="relative overflow-hidden bg-gradient-aurora px-5 pb-8 pt-6">

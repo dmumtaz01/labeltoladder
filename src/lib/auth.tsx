@@ -6,14 +6,16 @@ type AuthCtx = {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isAuthenticated: boolean;
   roles: string[];
   signOut: () => Promise<void>;
 };
 
-const Ctx = createContext<AuthCtx>({
+const AuthContext = createContext<AuthCtx>({
   user: null,
   session: null,
   loading: true,
+  isAuthenticated: false,
   roles: [],
   signOut: async () => {},
 });
@@ -24,44 +26,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
 
   useEffect(() => {
-    // Subscribe FIRST
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      if (s?.user) {
-        // defer to avoid deadlocks
-        setTimeout(() => fetchRoles(s.user.id), 0);
-      } else {
-        setRoles([]);
-      }
-    });
+    let active = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    async function initializeSession() {
+      if (typeof window !== "undefined") {
+        const url = window.location.href;
+        const callbackParams = url.includes("access_token") && url.includes("refresh_token");
+
+        if (callbackParams) {
+          const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
+          if (!active) return;
+          if (error) {
+            console.error("Supabase callback URL session exchange failed", error.message);
+          }
+          if (data?.session) {
+            setSession(data.session);
+          }
+
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
+      }
+
+      const { data } = await supabase.auth.getSession();
+      if (!active) return;
       setSession(data.session);
-      if (data.session?.user) fetchRoles(data.session.user.id);
+      setLoading(false);
+    }
+
+    initializeSession();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, authState) => {
+      if (!active) return;
+      setSession(authState.session ?? null);
       setLoading(false);
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
-  async function fetchRoles(userId: string) {
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    setRoles((data ?? []).map((r) => r.role as string));
-  }
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setRoles([]);
+      return;
+    }
+
+    let active = true;
+
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", session.user.id)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (!error && data) {
+          setRoles(data.map((item) => item.role));
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
 
   const value = useMemo(
-    () => ({ user: session?.user ?? null, session, loading, roles, signOut }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session?.user?.id, session?.access_token, loading, roles, signOut]
+    () => ({
+      user: session?.user ?? null,
+      session,
+      loading,
+      isAuthenticated: Boolean(session?.user),
+      roles,
+      signOut,
+    }),
+    [session, loading, roles, signOut]
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  return useContext(Ctx);
+  return useContext(AuthContext);
 }
