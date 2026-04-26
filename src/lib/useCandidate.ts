@@ -15,17 +15,20 @@ export function useCandidateGate() {
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [ready, setReady] = useState(false);
 
+  const userId = user?.id;
+
   useEffect(() => {
     if (loading) return;
-    if (!user) {
+    if (!userId) {
       navigate({ to: "/auth" });
       return;
     }
-    fetchCandidateProfile(user.id).then((p) => {
+    fetchCandidateProfile(userId).then((p) => {
       setProfile(p);
       setReady(true);
     });
-  }, [user, loading, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, loading]);
 
   async function save(p: CandidateProfile) {
     if (!user) throw new Error("Not signed in");

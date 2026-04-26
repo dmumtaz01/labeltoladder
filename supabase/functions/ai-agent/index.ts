@@ -1,5 +1,5 @@
-// AI Agent — streams Gemini responses for 4 modes: help | guide | matcher | reviewer
-// Uses Lovable AI Gateway (no API key needed by user).
+// AI Agent — streams Claude responses for 4 modes: help | guide | matcher | reviewer
+// Uses Anthropic Messages API with claude-sonnet-4-6.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +10,7 @@ const corsHeaders = {
 type Mode = "help" | "guide" | "matcher" | "reviewer";
 
 const SYSTEMS: Record<Mode, string> = {
-  help: `You are the in-app helper for Label-to-Ladder, an app that turns real-world skills into paid AI work. Be warm, brief, and answer in 1-3 short sentences. If asked about pricing or payouts, explain it varies by task and level (1-6).`,
+  help: `You are the in-app helper for Label-to-Ladder, a platform that turns real-world skills into paid AI work. Be warm, brief, and answer in 1-3 short sentences. If asked about pricing or payouts, explain it varies by task and level (1-6). You are powered by Claude, made by Anthropic.`,
   guide: `You are an onboarding coach for Label-to-Ladder. Walk the candidate one question at a time through: their country, languages, device, weekly hours, and education. Be encouraging, never overwhelm. Ask only ONE question per reply. When you have all 5 answers, return JSON in a final message starting with "ONBOARDING_DONE:" followed by JSON: {country, languages[], device, hoursPerWeek, education}.`,
   matcher: `You are a job-match explainer. Given a candidate's level + skills and a list of available tasks (provided as JSON in the user message), pick the top 3 best matches and for each explain in ONE sentence why it fits this candidate. Format each as: "**Task title** — reason". Be concrete; reference the candidate's strengths.`,
   reviewer: `You are a quality reviewer for AI training data annotations. Given an annotation submission, evaluate: accuracy, clarity, instruction-following. Reply with: a score from 0.0 to 1.0 on the FIRST line as "SCORE: 0.X", then 2-3 sentences of feedback. Be fair and specific.`,
@@ -21,40 +21,43 @@ Deno.serve(async (req) => {
 
   try {
     const { messages, mode = "help" } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
 
     const system = SYSTEMS[(mode as Mode) ?? "help"] ?? SYSTEMS.help;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
         stream: true,
-        messages: [{ role: "system", content: system }, ...messages],
+        system,
+        messages,
       }),
     });
 
     if (!response.ok) {
+      const text = await response.text();
+      console.error("Anthropic API error:", response.status, text);
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit reached. Please try again in a moment." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add credits to your workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Invalid API key. Check ANTHROPIC_API_KEY secret." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const text = await response.text();
-      console.error("AI gateway error:", response.status, text);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+      return new Response(JSON.stringify({ error: "AI API error", detail: text }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

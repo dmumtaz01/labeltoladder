@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -49,21 +49,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles((data ?? []).map((r) => r.role as string));
   }
 
-  return (
-    <Ctx.Provider
-      value={{
-        user: session?.user ?? null,
-        session,
-        loading,
-        roles,
-        signOut: async () => {
-          await supabase.auth.signOut();
-        },
-      }}
-    >
-      {children}
-    </Ctx.Provider>
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
+
+  const value = useMemo(
+    () => ({ user: session?.user ?? null, session, loading, roles, signOut }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [session?.user?.id, session?.access_token, loading, roles, signOut]
   );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

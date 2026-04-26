@@ -1,4 +1,4 @@
-// Streaming client for the ai-agent edge function.
+// Streaming client for the ai-agent edge function (Anthropic Claude SSE format).
 const URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-agent`;
 const KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -32,8 +32,8 @@ export async function streamAgent({
     if (!resp.ok || !resp.body) {
       if (resp.status === 429) {
         onError?.("Too many requests — please slow down a moment.");
-      } else if (resp.status === 402) {
-        onError?.("AI credits exhausted. Add credits in workspace settings.");
+      } else if (resp.status === 401) {
+        onError?.("AI agent not configured. Please set ANTHROPIC_API_KEY.");
       } else {
         onError?.("AI agent unavailable right now.");
       }
@@ -45,6 +45,8 @@ export async function streamAgent({
     const decoder = new TextDecoder();
     let buf = "";
     let done = false;
+    // Anthropic SSE sends "event: <type>" lines before "data: <json>" lines.
+    let currentEvent = "";
 
     while (!done) {
       const { done: d, value } = await reader.read();
@@ -56,17 +58,38 @@ export async function streamAgent({
         let line = buf.slice(0, nl);
         buf = buf.slice(nl + 1);
         if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (line.startsWith(":") || line.trim() === "") continue;
+
+        if (line.trim() === "") {
+          currentEvent = "";
+          continue;
+        }
+
+        if (line.startsWith("event: ")) {
+          currentEvent = line.slice(7).trim();
+          continue;
+        }
+
         if (!line.startsWith("data: ")) continue;
         const json = line.slice(6).trim();
-        if (json === "[DONE]") {
-          done = true;
-          break;
-        }
+
         try {
           const parsed = JSON.parse(json);
-          const c = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (c) onDelta(c);
+
+          // Anthropic streaming: content_block_delta carries text chunks
+          if (
+            parsed.type === "content_block_delta" &&
+            parsed.delta?.type === "text_delta" &&
+            parsed.delta?.text
+          ) {
+            onDelta(parsed.delta.text as string);
+            continue;
+          }
+
+          // Anthropic streaming: message_stop signals end of stream
+          if (parsed.type === "message_stop") {
+            done = true;
+            break;
+          }
         } catch {
           buf = line + "\n" + buf;
           break;

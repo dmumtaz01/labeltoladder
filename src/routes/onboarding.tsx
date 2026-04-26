@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,21 +60,33 @@ function OnboardingPage() {
     hoursPerWeek: 10,
     education: "secondary",
   });
+  const [formInitialized, setFormInitialized] = useState(false);
 
   useEffect(() => {
-    if (profile?.onboarding) setData(profile.onboarding);
-  }, [profile]);
+    // Only seed form from DB once — never overwrite what the user has typed.
+    if (!formInitialized && profile?.onboarding) {
+      setData(profile.onboarding);
+      setFormInitialized(true);
+    }
+  }, [profile, formInitialized]);
 
-  const update = <K extends keyof Onboarding>(k: K, v: Onboarding[K]) =>
-    setData((d) => ({ ...d, [k]: v }));
+  const update = useCallback(<K extends keyof Onboarding>(k: K, v: Onboarding[K]) =>
+    setData((d) => ({ ...d, [k]: v })), []);
 
-  const toggleLang = (l: string) =>
+  const toggleLang = useCallback((l: string) =>
     setData((d) => ({
       ...d,
       languages: d.languages.includes(l)
         ? d.languages.filter((x) => x !== l)
         : [...d.languages, l],
-    }));
+    })), []);
+
+  // Stable per-field callbacks — created once, safe to pass to memo'd grids
+  const onCountrySelect = useCallback((c: string) => update("country", c), [update]);
+  const onDeviceSelect = useCallback((d: "smartphone" | "laptop" | "both") => update("device", d), [update]);
+  const onInternetSelect = useCallback((v: "fast" | "ok" | "limited") => update("internet", v), [update]);
+  const onEducationSelect = useCallback((e: "none" | "primary" | "secondary" | "university") => update("education", e), [update]);
+  const onHoursChange = useCallback((h: number) => update("hoursPerWeek", h), [update]);
 
   const canContinue = () => {
     if (step === 1) return data.fullName.trim().length >= 2 && data.country.length > 0;
@@ -118,17 +130,7 @@ function OnboardingPage() {
                 </div>
                 <div>
                   <Label>Country you live in</Label>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {COUNTRIES.map((c) => (
-                      <ChipButton
-                        key={c}
-                        active={data.country === c}
-                        onClick={() => update("country", c)}
-                      >
-                        {c}
-                      </ChipButton>
-                    ))}
-                  </div>
+                  <CountryGrid selected={data.country} onSelect={onCountrySelect} />
                 </div>
               </div>
             </Step>
@@ -138,17 +140,7 @@ function OnboardingPage() {
               title="Which languages do you speak well?"
               hint="Pick all that apply. Multilingual workers are highly valued."
             >
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {LANGUAGE_OPTIONS.map((l) => (
-                  <ChipButton
-                    key={l}
-                    active={data.languages.includes(l)}
-                    onClick={() => toggleLang(l)}
-                  >
-                    {l}
-                  </ChipButton>
-                ))}
-              </div>
+              <LanguageGrid selected={data.languages} onToggle={toggleLang} />
             </Step>
           )}
           {step === 3 && (
@@ -159,48 +151,15 @@ function OnboardingPage() {
               <div className="space-y-5">
                 <div>
                   <Label>Primary device</Label>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {(["smartphone", "laptop", "both"] as const).map((d) => (
-                      <ChipButton
-                        key={d}
-                        active={data.device === d}
-                        onClick={() => update("device", d)}
-                      >
-                        {d[0].toUpperCase() + d.slice(1)}
-                      </ChipButton>
-                    ))}
-                  </div>
+                  <DeviceGrid selected={data.device} onSelect={onDeviceSelect} />
                 </div>
                 <div>
                   <Label>Internet quality</Label>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {(["fast", "ok", "limited"] as const).map((d) => (
-                      <ChipButton
-                        key={d}
-                        active={data.internet === d}
-                        onClick={() => update("internet", d)}
-                      >
-                        {d === "ok" ? "Stable" : d[0].toUpperCase() + d.slice(1)}
-                      </ChipButton>
-                    ))}
-                  </div>
+                  <InternetGrid selected={data.internet} onSelect={onInternetSelect} />
                 </div>
                 <div>
                   <Label>Hours per week you can commit</Label>
-                  <div className="mt-3 flex items-center gap-4">
-                    <input
-                      type="range"
-                      min={2}
-                      max={40}
-                      step={1}
-                      value={data.hoursPerWeek}
-                      onChange={(e) => update("hoursPerWeek", Number(e.target.value))}
-                      className="flex-1 accent-[var(--color-secondary)]"
-                    />
-                    <span className="w-16 rounded-md bg-muted px-3 py-1 text-center font-mono text-sm">
-                      {data.hoursPerWeek}h
-                    </span>
-                  </div>
+                  <HoursSlider value={data.hoursPerWeek} onChange={onHoursChange} />
                 </div>
               </div>
             </Step>
@@ -210,24 +169,7 @@ function OnboardingPage() {
               title="Education (optional)"
               hint="We don't filter by it. We just want to understand the talent we're meeting."
             >
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {(
-                  [
-                    ["none", "None"],
-                    ["primary", "Primary"],
-                    ["secondary", "Secondary"],
-                    ["university", "University"],
-                  ] as const
-                ).map(([k, l]) => (
-                  <ChipButton
-                    key={k}
-                    active={data.education === k}
-                    onClick={() => update("education", k)}
-                  >
-                    {l}
-                  </ChipButton>
-                ))}
-              </div>
+              <EducationGrid selected={data.education} onSelect={onEducationSelect} />
             </Step>
           )}
 
@@ -300,7 +242,7 @@ export function ProgressBar({
   );
 }
 
-export function ChipButton({
+export const ChipButton = memo(function ChipButton({
   active,
   children,
   onClick,
@@ -323,4 +265,65 @@ export function ChipButton({
       {children}
     </button>
   );
-}
+});
+
+// Memoized grids — only re-render when their specific slice of data changes,
+// not when the user types in the name field.
+const CountryGrid = memo(({ selected, onSelect }: { selected: string; onSelect: (c: string) => void }) => (
+  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+    {COUNTRIES.map((c) => (
+      <ChipButton key={c} active={selected === c} onClick={() => onSelect(c)}>{c}</ChipButton>
+    ))}
+  </div>
+));
+
+const LanguageGrid = memo(({ selected, onToggle }: { selected: string[]; onToggle: (l: string) => void }) => (
+  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    {LANGUAGE_OPTIONS.map((l) => (
+      <ChipButton key={l} active={selected.includes(l)} onClick={() => onToggle(l)}>{l}</ChipButton>
+    ))}
+  </div>
+));
+
+const DeviceGrid = memo(({ selected, onSelect }: { selected: string; onSelect: (d: "smartphone" | "laptop" | "both") => void }) => (
+  <div className="mt-2 grid grid-cols-3 gap-2">
+    {(["smartphone", "laptop", "both"] as const).map((d) => (
+      <ChipButton key={d} active={selected === d} onClick={() => onSelect(d)}>
+        {d[0].toUpperCase() + d.slice(1)}
+      </ChipButton>
+    ))}
+  </div>
+));
+
+const InternetGrid = memo(({ selected, onSelect }: { selected: string; onSelect: (v: "fast" | "ok" | "limited") => void }) => (
+  <div className="mt-2 grid grid-cols-3 gap-2">
+    {(["fast", "ok", "limited"] as const).map((v) => (
+      <ChipButton key={v} active={selected === v} onClick={() => onSelect(v)}>
+        {v === "ok" ? "Stable" : v[0].toUpperCase() + v.slice(1)}
+      </ChipButton>
+    ))}
+  </div>
+));
+
+const HoursSlider = memo(({ value, onChange }: { value: number; onChange: (h: number) => void }) => (
+  <div className="mt-3 flex items-center gap-4">
+    <input
+      type="range"
+      min={2}
+      max={40}
+      step={1}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="flex-1 accent-[var(--color-secondary)]"
+    />
+    <span className="w-16 rounded-md bg-muted px-3 py-1 text-center font-mono text-sm">{value}h</span>
+  </div>
+));
+
+const EducationGrid = memo(({ selected, onSelect }: { selected: string; onSelect: (e: "none" | "primary" | "secondary" | "university") => void }) => (
+  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    {([["none", "None"], ["primary", "Primary"], ["secondary", "Secondary"], ["university", "University"]] as const).map(([k, l]) => (
+      <ChipButton key={k} active={selected === k} onClick={() => onSelect(k)}>{l}</ChipButton>
+    ))}
+  </div>
+));

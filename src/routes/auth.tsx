@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/auth")({
@@ -29,9 +28,11 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const userId = user?.id;
   useEffect(() => {
-    if (!loading && user) navigate({ to: "/onboarding" });
-  }, [user, loading, navigate]);
+    if (!loading && userId) navigate({ to: "/onboarding" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, loading]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,12 +65,14 @@ function AuthPage() {
     setBusy(true);
     setError(null);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/onboarding`,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/onboarding`,
+        },
       });
-      if ("error" in result && result.error) {
-        throw result.error;
-      }
+      if (error) throw error;
+      // browser will redirect — no need to setBusy(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
       setBusy(false);
